@@ -253,6 +253,8 @@ void Instance::set_items(std::vector<std::shared_ptr<Item>> items)
     {
         const auto &item = items[i];
         items_per_group_[item->group()].insert(i);
+
+        item->available_for_transport() ? items_for_transport_.push_back(i) : items_fixed_.push_back(i);
     }
     successors_for_transport_per_item_.resize(items.size());
     successors_fixed_per_item_.resize(items.size());

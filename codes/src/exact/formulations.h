@@ -37,6 +37,7 @@ public:
     size_t counter = numVars();
     var_to_index_map_[{i, j}] = counter;
     index_to_var_map_[counter] = {i, j};
+    // std::cout << i << " " << j << " -> " << counter << std::endl;
   }
 
   struct pair_hash
@@ -53,6 +54,7 @@ public:
 
       return seed;
     }
+    friend std::ostream &operator<<(std::ostream &out, const VarToIndexMap &map);
   };
 
   const std::unordered_map<std::pair<int, int>, int, pair_hash> &var_to_index_map() const
@@ -69,23 +71,44 @@ private:
   std::unordered_map<int, std::pair<int, int>> index_to_var_map_;
 };
 
-struct VehicleSequencingModelVariables
+class VehicleSequencingModelVariables
 {
-  IloNumVarArray x;
-  IloNumVarArray z;
-  IloNumVarArray w;
-  IloNumVarArray U;
+public:
+  VehicleSequencingModelVariables() = default;
+  ~VehicleSequencingModelVariables() = default;
 
-  VarToIndexMap x_var_to_index;
-  VarToIndexMap z_var_to_index;
-  VarToIndexMap w_var_to_index;
-  VarToIndexMap U_var_to_index;
+  friend std::ostream &operator<<(std::ostream &out, const VehicleSequencingModelVariables &vars);
+
+  IloNumVarArray x_;
+  IloNumVarArray z_;
+  IloNumVarArray w_;
+  IloNumVarArray U_;
+
+  IloNumVar &x(int i, int j)
+  {
+    return x_[x_var_to_index_.varToIndex(i, j)];
+  }
+
+  IloNumVar &z(int i, int h)
+  {
+    return z_[z_var_to_index_.varToIndex(i, h)];
+  }
+
+  IloNumVar &w(int j, int k)
+  {
+    return w_[w_var_to_index_.varToIndex(j, k)];
+  }
+
+  IloNumVar &U(int j)
+  {
+    return U_[U_var_to_index_.varToIndex(0, j)];
+  }
+
+  VarToIndexMap x_var_to_index_;
+  VarToIndexMap z_var_to_index_;
+  VarToIndexMap w_var_to_index_;
+  VarToIndexMap U_var_to_index_;
 };
-
-int a_var_to_index(int vertex, int budget, int num_vertices);
-int f_var_to_index(int arc_pos, int budget, int num_arcs);
-
-std::pair<int, int> index_to_a_var(int index, int num_vertices);
 
 template <class T>
 void SetSolutionStatus(IloCplex &cplex, Solution<T> &solution, bool solve_relax)
@@ -129,9 +152,9 @@ void SetSolutionStatus(IloCplex &cplex, Solution<T> &solution, bool solve_relax)
 
 void allocateVehicleSequencingModelVariables(IloEnv &env, VehicleSequencingModelVariables &vars, const Instance &instance, bool solve_relax, bool disable_all_binary_vars = false);
 
-static void populateByRowVehicleSequencingModel(IloCplex &cplex, IloEnv &env, IloModel &model, VehicleSequencingModelVariables &vars, const Instance &instance, bool export_model);
+static void populateByRowVehicleSequencingModel(IloCplex &cplex, IloEnv &env, IloModel &model, VehicleSequencingModelVariables &vars, const Instance &instance, bool add_symmetry_breaking, bool export_model);
 
-void vehicleSequencingModel(Instance &inst, double time_limit, bool solve_relax, bool export_model);
+void vehicleSequencingModel(Instance &inst, double time_limit, bool add_symmetry_breaking, bool solve_relax, bool export_model);
 
-void optimize(IloCplex &cplex, IloEnv &env, IloModel &model, std::optional<Formulation> formulation, VehicleSequencingModelVariables &vars, Instance &instance, double total_time_limit, bool solve_relax, bool apply_benders, bool apply_benders_generic_callback, bool combine_feas_op_cuts, bool separate_benders_cuts_relaxation, bool use_valid_inequalities, bool find_root_cuts, double *R0, double *Rn, std::list<UserCutGeneral *> *initial_cuts, HeuristicSolution *initial_sol, bool export_model, std::list<UserCutGeneral *> *root_cuts, Solution<double> &solution);
+void optimize(IloCplex &cplex, IloEnv &env, IloModel &model, double total_time_limit, bool solve_relax, Solution<double> &solution);
 void optimizeLP(IloCplex &cplex, IloEnv &env, IloModel &model, Instance &instance, double total_time_limit, double *R0, double *Rn, Solution<double> &);

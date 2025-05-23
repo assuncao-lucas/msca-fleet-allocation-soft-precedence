@@ -1,5 +1,6 @@
 
 #include "src/instance.h"
+#include "src/exact/formulations.h"
 
 int main()
 {
@@ -38,6 +39,11 @@ int main()
 	Instance inst(items, precedence_matrix, fleet);
 
 	std::cout << inst << std::endl;
+
+	bool add_symmetry_breaking = false;
+	bool solve_relax = false;
+	bool export_model = false;
+	vehicleSequencingModel(inst, 1000, add_symmetry_breaking, solve_relax, export_model);
 
 	return 0;
 }
