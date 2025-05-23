@@ -42,7 +42,7 @@ int main()
 
 	bool add_symmetry_breaking = false;
 	bool solve_relax = false;
-	bool export_model = false;
+	bool export_model = true;
 	vehicleSequencingModel(inst, 1000, add_symmetry_breaking, solve_relax, export_model);
 
 	return 0;
