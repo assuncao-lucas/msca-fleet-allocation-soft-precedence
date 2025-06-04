@@ -55,10 +55,10 @@ public:
 class Instance
 {
 private:
-	std::vector<std::shared_ptr<Item>> items_;						   // complete set of items.
-	std::vector<int> items_for_transport_;							   // indexes of items that can be transported.
-	std::vector<int> items_fixed_;									   // indexes of items fixed.
-	std::unordered_map<int, std::unordered_set<int>> items_per_group_; // partition of items per group.
+	std::vector<std::shared_ptr<Item>> items_;										 // complete set of items.
+	std::vector<int> items_for_transport_;											 // indexes of items that can be transported.
+	std::vector<int> items_fixed_;													 // indexes of items fixed.
+	std::unordered_map<int, std::unordered_set<int>> items_for_transport_per_group_; // partition of items_for_transport per group.
 
 	Matrix<int> precedence_matrix_;
 
@@ -97,9 +97,9 @@ public:
 		return items_fixed_;
 	}
 
-	const std::unordered_map<int, std::unordered_set<int>> &items_per_group() const
+	const std::unordered_map<int, std::unordered_set<int>> &items_for_transport_per_group() const
 	{
-		return items_per_group_;
+		return items_for_transport_per_group_;
 	}
 
 	const Matrix<int> &precedence_matrix() const

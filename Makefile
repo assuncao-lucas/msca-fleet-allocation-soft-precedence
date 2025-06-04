@@ -113,7 +113,7 @@ graph_algo: $(GRAPH_ALGO_SRC) $(GRAPH_ALGO_H)
 general: $(GENERAL_SRC) $(GENERAL_H)
 	$(CC) $(CFLAGS) -c $(GENERAL_SRC) -o $(GENERAL_OBJ)
 
-USERCUT_OBJ: $(USERCUT_SRC) $(USERCUT_H)
+usercut_obj: $(USERCUT_SRC) $(USERCUT_H)
 	$(CC) $(CFLAGS) -c $(USERCUT_SRC) -o $(USERCUT_OBJ)
 
 timer: $(TIMER_SRC) $(TIMER_H)
@@ -164,8 +164,8 @@ benders_callback: $(BENDERS_CALLBACK_SRC) $(BENDERS_CALLBACK_H)
 stop: arc graph graph_algo general instance route matrix timer heuristic_solution solution benders_callback formulations feasibility_pump local_searches alns simulated_annealing initial_solution kernel_search
 	$(CC) $(CFLAGS) $(CFLAGS2) $(ARC_SRC) $(GRAPH_SRC) $(GRAPH_ALGO_SRC) $(GENERAL_SRC) $(USERCUT_SRC) $(ROUTE_SRC) $(MATRIX_HPP) $(INSTANCE_SRC) $(TIMER_SRC) $(HEURISTIC_SOLUTION_SRC) $(SOLUTION_HPP) $(BENDERS_CALLBACK_SRC) $(FORM_SRC) $(FEASIBILITY_PUMP_SRC) $(INITIAL_SOL_SRC) $(LOCAL_SEARCHES_SRC) $(ALNS_SRC) $(SIMULATED_ANNEALING_SRC) $(KERNEL_SEARCH_SRC) $(MAIN_SRC) -o $(PROG_BIN)/stop $(CLNFLAGS)
 
-new: matrix instance timer general formulations solution
-	$(CC) $(CFLAGS) $(CFLAGS2) $(MATRIX_HPP) $(INSTANCE_SRC) $(TIMER_SRC) $(GENERAL_SRC) $(FORM_SRC) $(SOLUTION_HPP) $(MAIN_SRC) -o $(PROG_BIN)/stop $(CLNFLAGS)
+new: matrix instance timer general formulations solution usercut_obj
+	$(CC) $(CFLAGS) $(CFLAGS2) $(MATRIX_HPP) $(INSTANCE_SRC) $(TIMER_SRC) $(GENERAL_SRC) $(FORM_SRC) $(SOLUTION_HPP) $(USERCUT_SRC) $(MAIN_SRC) -o $(PROG_BIN)/stop $(CLNFLAGS)
 
 clean:
 	rm $(PROG_BIN)/*

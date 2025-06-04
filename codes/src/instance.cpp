@@ -87,6 +87,16 @@ operator<<(std::ostream &out, const Instance &instance)
         out << std::endl;
     }
 
+    out << "Items for transport per group:" << std::endl;
+
+    for (auto &[group, items_of_group] : instance.items_for_transport_per_group())
+    {
+        out << "group " << group << ":" << std::endl;
+        for (auto item : items_of_group)
+            out << " " << item;
+        out << std::endl;
+    }
+
     out << "Vehicles:" << std::endl;
     const auto &fleet = instance.fleet();
 
@@ -247,14 +257,19 @@ void Instance::set_items(std::vector<std::shared_ptr<Item>> items)
     items_ = items;
 
     // update partition of items per group.
-    items_per_group_.clear();
+    items_for_transport_per_group_.clear();
 
     for (int i = 0; i < items.size(); ++i)
     {
         const auto &item = items[i];
-        items_per_group_[item->group()].insert(i);
 
-        item->available_for_transport() ? items_for_transport_.push_back(i) : items_fixed_.push_back(i);
+        if (item->available_for_transport())
+        {
+            items_for_transport_.push_back(i);
+            items_for_transport_per_group_[item->group()].insert(i);
+        }
+        else
+            items_fixed_.push_back(i);
     }
     successors_for_transport_per_item_.resize(items.size());
     successors_fixed_per_item_.resize(items.size());

@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <string>
 #include <ilcplex/ilocplex.h>
 #include <boost/functional/hash/hash.hpp>
 #include "src/instance.h"
@@ -19,12 +20,20 @@ public:
 
   int varToIndex(int i, int j)
   {
-    return var_to_index_map_[{i, j}];
+    auto element = var_to_index_map_.find({i, j});
+    if (element == var_to_index_map_.end())
+      throw "tried to access var not mapped: " + std::to_string(i) + " " + std::to_string(j);
+    else
+      return element->second;
   }
 
   std::pair<int, int> indexToVar(int index)
   {
-    return index_to_var_map_[index];
+    auto element = index_to_var_map_.find(index);
+    if (element == index_to_var_map_.end())
+      throw "tried to access var not mapped: " + std::to_string(index);
+    else
+      return element->second;
   }
 
   size_t numVars() const
@@ -83,31 +92,181 @@ public:
   IloNumVarArray z_;
   IloNumVarArray w_;
   IloNumVarArray U_;
+  IloNumVarArray X_;
 
   IloNumVar &x(int i, int j)
   {
-    return x_[x_var_to_index_.varToIndex(i, j)];
+    return x_[x_index(i, j)];
   }
 
   IloNumVar &z(int i, int h)
   {
-    return z_[z_var_to_index_.varToIndex(i, h)];
+    return z_[z_index(i, h)];
   }
 
   IloNumVar &w(int j, int k)
   {
-    return w_[w_var_to_index_.varToIndex(j, k)];
+    return w_[w_index(j, k)];
   }
 
   IloNumVar &U(int j)
   {
-    return U_[U_var_to_index_.varToIndex(0, j)];
+    return U_[U_index(j)];
+  }
+
+  IloNumVar &X(int i, int q)
+  {
+    return X_[X_index(i, q)];
+  }
+
+  int x_index(int i, int j)
+  {
+    return x_var_to_index_.varToIndex(i, j);
+  }
+
+  int z_index(int i, int h)
+  {
+    return z_var_to_index_.varToIndex(i, h);
+  }
+
+  int w_index(int j, int k)
+  {
+    return w_var_to_index_.varToIndex(j, k);
+  }
+
+  int U_index(int j)
+  {
+    return U_var_to_index_.varToIndex(0, j);
+  }
+
+  int X_index(int i, int q)
+  {
+    return X_var_to_index_.varToIndex(i, q);
   }
 
   VarToIndexMap x_var_to_index_;
   VarToIndexMap z_var_to_index_;
   VarToIndexMap w_var_to_index_;
   VarToIndexMap U_var_to_index_;
+  VarToIndexMap X_var_to_index_;
+};
+
+class ItemSequencingModelVariables
+{
+public:
+  ItemSequencingModelVariables() = default;
+  ~ItemSequencingModelVariables() = default;
+
+  friend std::ostream &operator<<(std::ostream &out, const ItemSequencingModelVariables &vars);
+
+  IloNumVarArray x_;
+  IloNumVarArray u_;
+  IloNumVarArray U_;
+  IloNumVarArray X_;
+
+  IloNumVar &x(int i, int j)
+  {
+    return x_[x_index(i, j)];
+  }
+
+  IloNumVar &u(int j, int k)
+  {
+    return u_[u_index(j, k)];
+  }
+
+  IloNumVar &U(int j)
+  {
+    return U_[U_index(j)];
+  }
+
+  IloNumVar &X(int i, int q)
+  {
+    return X_[X_index(i, q)];
+  }
+
+  int x_index(int i, int j)
+  {
+    return x_var_to_index_.varToIndex(i, j);
+  }
+
+  int u_index(int j, int k)
+  {
+    return u_var_to_index_.varToIndex(j, k);
+  }
+
+  int U_index(int j)
+  {
+    return U_var_to_index_.varToIndex(0, j);
+  }
+
+  int X_index(int i, int q)
+  {
+    return X_var_to_index_.varToIndex(i, q);
+  }
+
+  VarToIndexMap x_var_to_index_;
+  VarToIndexMap u_var_to_index_;
+  VarToIndexMap U_var_to_index_;
+  VarToIndexMap X_var_to_index_;
+};
+
+class VehicleSlotsModelVariables
+{
+public:
+  VehicleSlotsModelVariables() = default;
+  ~VehicleSlotsModelVariables() = default;
+
+  friend std::ostream &operator<<(std::ostream &out, const VehicleSlotsModelVariables &vars);
+
+  IloNumVarArray y1_;
+  IloNumVarArray y2_;
+  IloNumVarArray U_;
+  IloNumVarArray Y_;
+
+  IloNumVar &y1(int i, int j)
+  {
+    return y1_[y1_index(i, j)];
+  }
+
+  IloNumVar &y2(int i, int h)
+  {
+    return y2_[y2_index(i, h)];
+  }
+
+  IloNumVar &U(int j)
+  {
+    return U_[U_index(j)];
+  }
+
+  IloNumVar &Y(int i, int q)
+  {
+    return Y_[Y_index(i, q)];
+  }
+
+  int y1_index(int i, int j)
+  {
+    return y1_var_to_index_.varToIndex(i, j);
+  }
+
+  int y2_index(int i, int h)
+  {
+    return y2_var_to_index_.varToIndex(i, h);
+  }
+
+  int U_index(int j)
+  {
+    return U_var_to_index_.varToIndex(0, j);
+  }
+
+  int Y_index(int i, int q)
+  {
+    return Y_var_to_index_.varToIndex(i, q);
+  }
+
+  VarToIndexMap y1_var_to_index_;
+  VarToIndexMap y2_var_to_index_;
+  VarToIndexMap U_var_to_index_;
+  VarToIndexMap Y_var_to_index_;
 };
 
 template <class T>
@@ -150,11 +309,69 @@ void SetSolutionStatus(IloCplex &cplex, Solution<T> &solution, bool solve_relax)
   solution.num_nodes_ = cplex.getNnodes();
 }
 
-void allocateVehicleSequencingModelVariables(IloEnv &env, VehicleSequencingModelVariables &vars, const Instance &instance, bool solve_relax, bool disable_all_binary_vars = false);
+class Model // abstract class for the models.
+{
+public:
+  Model() = default;
+  ~Model();
+  virtual void solve(const Instance &instance, double time_limit) = 0;
 
-static void populateByRowVehicleSequencingModel(IloCplex &cplex, IloEnv &env, IloModel &model, VehicleSequencingModelVariables &vars, const Instance &instance, bool add_symmetry_breaking, bool export_model);
+protected:
+  virtual void allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars = false) = 0;
+  virtual void populateByRow(const Instance &instance, bool reformulate, bool symmetry_breaking, bool export_model) = 0;
+  void optimize(const Instance &instance, double total_time_limit, bool use_valid_inequalities, bool find_root_cuts, std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution);
+  virtual void addInitialCuts(std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution);
+  virtual void addCut(UserCut *curr_cut) = 0;
+  virtual bool findAndAddValidInqualities(const Instance &instance, Solution<double> &sol, std::list<UserCut *> *root_cuts);
 
-void vehicleSequencingModel(Instance &inst, double time_limit, bool add_symmetry_breaking, bool solve_relax, bool export_model);
+  IloEnv *env_ = nullptr;     // Cplex environment.
+  IloCplex *cplex_ = nullptr; // Cplex solver.
+  IloModel *model_ = nullptr; // Cplex model.
+  bool is_relaxed_ = false;
+  bool reformulated_ = false;
+};
 
-void optimize(IloCplex &cplex, IloEnv &env, IloModel &model, double total_time_limit, bool solve_relax, Solution<double> &solution);
-void optimizeLP(IloCplex &cplex, IloEnv &env, IloModel &model, Instance &instance, double total_time_limit, double *R0, double *Rn, Solution<double> &);
+class VehicleSequencingModel : public Model
+{
+public:
+  explicit VehicleSequencingModel(Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed, bool export_model);
+  ~VehicleSequencingModel() = default;
+  virtual void solve(const Instance &instance, double time_limit);
+
+private:
+  virtual void allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars = false);
+  virtual void populateByRow(const Instance &instance, bool reformulate, bool symmetry_breaking, bool export_model);
+  virtual void addCut(UserCut *curr_cut);
+
+  VehicleSequencingModelVariables vars_;
+};
+
+class ItemSequencingModel : public Model
+{
+public:
+  explicit ItemSequencingModel(Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed, bool export_model);
+  ~ItemSequencingModel() = default;
+  virtual void solve(const Instance &instance, double time_limit);
+
+private:
+  virtual void allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars = false);
+  virtual void populateByRow(const Instance &instance, bool reformulate, bool symmetry_breaking, bool export_model);
+  virtual void addCut(UserCut *curr_cut);
+
+  ItemSequencingModelVariables vars_;
+};
+
+class VehicleSlotsModel : public Model
+{
+public:
+  explicit VehicleSlotsModel(Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed, bool export_model);
+  ~VehicleSlotsModel() = default;
+  virtual void solve(const Instance &instance, double time_limit);
+
+private:
+  virtual void allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars = false);
+  virtual void populateByRow(const Instance &instance, bool reformulate, bool symmetry_breaking, bool export_model);
+  virtual void addCut(UserCut *curr_cut);
+
+  VehicleSlotsModelVariables vars_;
+};
