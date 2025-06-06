@@ -20,7 +20,7 @@ const double K_TAILING_OFF_TOLERANCE = 0.001;
 const double K_GCCS_TOLERANCE = 0.05;
 const double K_CONFLICT_TOLERANCE = 0.3;
 const double K_CLIQUE_CONFLICT_TOLERANCE = 0.01;
-const double K_CUTS_ANGLE_COSIN_LIMIT = 0.03;
+const double K_CUTS_ANGLE_COSIN_LIMIT = 10.0; // 0.03;
 
 const bool K_DISABLE_PREPROCESS_HEURISTICS = false;
 const bool K_SET_PRIORITY_ORDER = false;

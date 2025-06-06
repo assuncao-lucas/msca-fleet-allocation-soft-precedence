@@ -47,16 +47,36 @@ int main()
 
 		std::cout << inst << std::endl;
 
-		bool reformulate = true;
+		bool reformulate = false;
 		bool add_symmetry_breaking = true;
-		bool solve_relax = false;
+		bool solve_relax = true;
+		bool find_root_cuts = true;
 		bool export_model = true;
 		int time_limit = 1000;
 		VehicleSequencingModel model(inst, reformulate, add_symmetry_breaking, solve_relax, export_model);
 		// ItemSequencingModel model(inst, reformulate, add_symmetry_breaking, solve_relax, export_model);
 		// VehicleSlotsModel model(inst, reformulate, add_symmetry_breaking, solve_relax, export_model);
 
-		model.solve(inst, time_limit);
+		Solution<double> solution;
+
+		std::list<UserCut *> *root_cuts = nullptr;
+		if ((find_root_cuts) && (!solve_relax))
+		{
+			// fill root_cuts by solving relaxed model with separation of cuts.
+			VehicleSequencingModel relaxed_model(inst, reformulate, add_symmetry_breaking, true, false);
+			// ItemSequencingModel relaxed_model(inst, reformulate, add_symmetry_breaking, true, false);
+			// VehicleSlotsModel relaxed_model(inst, reformulate, add_symmetry_breaking, true, false);
+			root_cuts = new std::list<UserCut *>();
+			relaxed_model.optimize(inst, -1.0, true, nullptr, root_cuts, solution);
+		}
+
+		// solve the main problem (either relaxed or integer).
+		if (model.optimize(inst, time_limit, find_root_cuts, root_cuts, nullptr, solution))
+			model.fillSolution(inst, solution);
+
+		std::cout << "cuts added root: " << solution.num_cuts_added_lp_[K_TYPE_CLIQUE_CONFLICT_CUT] << std::endl;
+
+		DeleteCuts(root_cuts);
 	}
 	catch (const std::runtime_error &re)
 	{

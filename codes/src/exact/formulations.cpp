@@ -7,6 +7,67 @@
 
 ILOSTLBEGIN
 
+static UserCut *GenerateCliqueConflictCuts(const Instance &instance, const VarToIndexMap &var_to_index_map, const IloNumVarArray &item_to_vehicle_or_slot_vars, const IloNumArray &item_to_vehicle_or_slot_values, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts)
+{
+  UserCut *best_cut = nullptr, *curr_cut = nullptr;
+  const int num_vehicles = instance.num_vehicles();
+  const int cut_dimension = item_to_vehicle_or_slot_vars.getSize();
+  double curr_cut_violation = 0.0;
+  double max_value_in_group_per_vehicle_or_slot = -1.0;
+  double curr_value = 0.0;
+  int item_max_value_index = -1;
+  int var_index = -1;
+  double sum_max_values_vehicle = 0.0;
+
+  for (int i = 0; i < num_vehicles; ++i)
+  {
+    sum_max_values_vehicle = 0.0;
+    curr_cut_violation = 0.0;
+    curr_cut = new UserCut(cut_dimension, curr_cut_violation, K_TYPE_CLIQUE_CONFLICT_CUT);
+
+    for (auto &[group, items] : instance.items_for_transport_per_group())
+    {
+      max_value_in_group_per_vehicle_or_slot = -1.0;
+      item_max_value_index = -1;
+      for (auto &j : items)
+      {
+        var_index = var_to_index_map.varToIndex(i, j);
+        curr_value = item_to_vehicle_or_slot_values[var_index];
+        if (double_greater(curr_value, max_value_in_group_per_vehicle_or_slot))
+        {
+          max_value_in_group_per_vehicle_or_slot = curr_value;
+          item_max_value_index = j;
+        }
+      }
+
+      sum_max_values_vehicle += max_value_in_group_per_vehicle_or_slot;
+      curr_cut->AddLhsElement(i, item_max_value_index, var_to_index_map.varToIndex(i, item_max_value_index));
+    }
+
+    curr_cut_violation = sum_max_values_vehicle - 1.0;
+    bool cut_violated = double_greater(curr_cut_violation, 0.0) ? true : false;
+
+    if (cut_violated)
+    {
+      curr_cut->set_curr_abs_violation(curr_cut_violation);
+
+      cuts.push_back(curr_cut);
+      sol.set_cut_found(K_TYPE_CLIQUE_CONFLICT_CUT, root_cuts);
+      curr_cut->UpdateMeasures();
+
+      if (curr_cut->isBetterThan(best_cut))
+        best_cut = curr_cut;
+    }
+    else
+    {
+      delete curr_cut;
+      curr_cut = nullptr;
+    }
+  }
+
+  return best_cut;
+}
+
 // Model.
 Model::~Model()
 {
@@ -29,7 +90,7 @@ Model::~Model()
   }
 }
 
-void Model::optimize(const Instance &instance, double total_time_limit, bool use_valid_inequalities, bool find_root_cuts, std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution)
+bool Model::optimize(const Instance &instance, double total_time_limit, bool find_root_cuts, std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution)
 {
   Timestamp *ti = NewTimestamp(), *tf = NewTimestamp();
   Timer *timer = GetTimer();
@@ -85,7 +146,7 @@ void Model::optimize(const Instance &instance, double total_time_limit, bool use
       ti = nullptr;
       delete (tf);
       tf = nullptr;
-      return;
+      return false;
     }
     // getchar(); getchar();
     // cont++;
@@ -96,7 +157,7 @@ void Model::optimize(const Instance &instance, double total_time_limit, bool use
     {
       curr_bound = cplex_->getObjValue();
 
-      if (find_root_cuts && double_less(curr_bound, previous_bound, K_TAILING_OFF_TOLERANCE))
+      if (find_root_cuts) // && double_less(curr_bound, previous_bound, K_TAILING_OFF_TOLERANCE))
         found_cuts |= findAndAddValidInqualities(instance, solution, root_cuts);
     }
   } while (found_cuts);
@@ -110,6 +171,8 @@ void Model::optimize(const Instance &instance, double total_time_limit, bool use
   ti = nullptr;
   delete (tf);
   tf = nullptr;
+
+  return true;
 }
 
 void Model::addInitialCuts(std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution)
@@ -121,7 +184,7 @@ void Model::addInitialCuts(std::list<UserCut *> *initial_cuts, std::list<UserCut
     {
       UserCut *curr_user_cut = static_cast<UserCut *>((*it));
       addCut(curr_user_cut);
-      solution.set_cut_added(-1, false);
+      solution.set_cut_added(K_TYPE_CLIQUE_CONFLICT_CUT, false);
 
       // delete (*it);
       //*it = NULL;
@@ -135,7 +198,7 @@ void Model::addInitialCuts(std::list<UserCut *> *initial_cuts, std::list<UserCut
 
 bool Model::findAndAddValidInqualities(const Instance &instance, Solution<double> &sol, std::list<UserCut *> *root_cuts)
 {
-  // std::cout << " ***************** looking for cuts" << std::endl;
+  std::cout << " ***************** looking for cuts" << std::endl;
   bool found_cut = false;
   (sol.num_calls_to_callback_lp_) += 1;
 
@@ -145,9 +208,7 @@ bool Model::findAndAddValidInqualities(const Instance &instance, Solution<double
 
   best_cut = nullptr;
   // find clique conflict cuts.
-  // local_best_cut = GenerateCliqueConflictCuts(instance, visited_nodes, nodes_sum, values_x,
-  //                                             visited_nodes_list, subgraph_to_graph_map, graph_to_subgraph_map, g,
-  //                                             l_nodes, capacity, g_inv, l_nodes_inv, capacity_inv, sol, cuts, true, instance.active_conflict_cliques());
+  local_best_cut = separateCuts(instance, root_cuts, sol, cuts);
 
   if ((local_best_cut != nullptr) && (local_best_cut->isBetterThan(best_cut)))
     best_cut = local_best_cut;
@@ -158,15 +219,15 @@ bool Model::findAndAddValidInqualities(const Instance &instance, Solution<double
 
     // adds best cut (most violated).
     addCut(best_cut);
-    sol.set_cut_added(-1, true);
-    // std::cout << "added cut to LP: " << std::endl;
+    sol.set_cut_added(K_TYPE_CLIQUE_CONFLICT_CUT, true);
+    std::cout << "added cut to LP: " << std::endl;
     // for (auto i : best_cut->rhs_nonzero_coefficients_indexes_)
     //   std::cout << i << std::endl;
     // std::cout << std::endl;
 
-    // for (auto [i, j] : best_cut->lhs_nonzero_coefficients_indexes_)
-    //   std::cout << i << ", " << j << std::endl;
-    // std::cout << std::endl;
+    for (auto [i, j] : best_cut->lhs_nonzero_coefficients_indexes_)
+      std::cout << i << ", " << j << std::endl;
+    std::cout << std::endl;
 
     if (root_cuts != nullptr)
     {
@@ -190,7 +251,7 @@ bool Model::findAndAddValidInqualities(const Instance &instance, Solution<double
       {
         addCut(curr_cut);
 
-        sol.set_cut_added(-1, true);
+        sol.set_cut_added(K_TYPE_CLIQUE_CONFLICT_CUT, true);
         // std::cout << "added cut to LP 2: " << std::endl;
         // for (auto i : curr_cut->rhs_nonzero_coefficients_indexes_)
         //   std::cout << i << std::endl;
@@ -284,6 +345,7 @@ void VehicleSequencingModel::addCut(UserCut *curr_cut)
 
   model_->add(exp <= 1);
   exp.end();
+  cplex_->exportModel("vehicle_sequencing_model.lp");
 }
 
 void VehicleSequencingModel::allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars)
@@ -583,11 +645,8 @@ void VehicleSequencingModel::populateByRow(const Instance &instance, bool reform
   }
 }
 
-void VehicleSequencingModel::solve(const Instance &inst, double time_limit)
+void VehicleSequencingModel::fillSolution(const Instance &inst, Solution<double> &solution)
 {
-  Solution<double> solution;
-  optimize(inst, time_limit, false, false, nullptr, nullptr, solution);
-
   int num_items_loaded = 0;
   int num_unproductive_moves = 0;
 
@@ -689,6 +748,13 @@ void VehicleSequencingModel::solve(const Instance &inst, double time_limit)
   }
 }
 
+UserCut *VehicleSequencingModel::separateCuts(const Instance &instance, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts)
+{
+  IloNumArray item_to_vehicle_or_slot_values(*env_);
+  cplex_->getValues(vars_.x_, item_to_vehicle_or_slot_values);
+  return GenerateCliqueConflictCuts(instance, vars_.x_var_to_index_, vars_.x_, item_to_vehicle_or_slot_values, root_cuts, sol, cuts);
+}
+
 // Item Sequencing model.
 std::ostream &
 operator<<(std::ostream &out, const ItemSequencingModelVariables &vars)
@@ -784,11 +850,8 @@ ItemSequencingModel::ItemSequencingModel(Instance &inst, bool reformulate, bool 
   populateByRow(inst, reformulate, add_symmetry_breaking, export_model);
 }
 
-void ItemSequencingModel::solve(const Instance &inst, double time_limit)
+void ItemSequencingModel::fillSolution(const Instance &inst, Solution<double> &solution)
 {
-  Solution<double> solution;
-  optimize(inst, time_limit, false, false, nullptr, nullptr, solution);
-
   int num_items_loaded = 0;
   int num_unproductive_moves = 0;
 
@@ -1149,6 +1212,13 @@ void ItemSequencingModel::populateByRow(const Instance &instance, bool reformula
   }
 }
 
+UserCut *ItemSequencingModel::separateCuts(const Instance &instance, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts)
+{
+  IloNumArray item_to_vehicle_or_slot_values(*env_);
+  cplex_->getValues(vars_.x_, item_to_vehicle_or_slot_values);
+  return GenerateCliqueConflictCuts(instance, vars_.x_var_to_index_, vars_.x_, item_to_vehicle_or_slot_values, root_cuts, sol, cuts);
+}
+
 // Vehicle slots model.
 std::ostream &
 operator<<(std::ostream &out, const VehicleSlotsModelVariables &vars)
@@ -1246,11 +1316,8 @@ VehicleSlotsModel::VehicleSlotsModel(Instance &inst, bool reformulate, bool add_
   populateByRow(inst, reformulate, add_symmetry_breaking, export_model);
 }
 
-void VehicleSlotsModel::solve(const Instance &inst, double time_limit)
+void VehicleSlotsModel::fillSolution(const Instance &inst, Solution<double> &solution)
 {
-  Solution<double> solution;
-  optimize(inst, time_limit, false, false, nullptr, nullptr, solution);
-
   int num_items_loaded = 0;
   int num_unproductive_moves = 0;
 
@@ -1557,4 +1624,11 @@ void VehicleSlotsModel::populateByRow(const Instance &instance, bool reformulate
     }
     cplex_->exportModel("vehicle_slots_model.lp");
   }
+}
+
+UserCut *VehicleSlotsModel::separateCuts(const Instance &instance, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts)
+{
+  IloNumArray item_to_vehicle_or_slot_values(*env_);
+  cplex_->getValues(vars_.y1_, item_to_vehicle_or_slot_values);
+  return GenerateCliqueConflictCuts(instance, vars_.y1_var_to_index_, vars_.y1_, item_to_vehicle_or_slot_values, root_cuts, sol, cuts);
 }

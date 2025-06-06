@@ -14,7 +14,10 @@ public:
     UserCut();
     ~UserCut();
     void AddLhsElement(int v1, int v2, int pos);
-    void AddRhsElement(int pos);
+    void set_curr_abs_violation(double violation)
+    {
+        curr_abs_violation_ = violation;
+    }
 
     void UpdateMeasures();
     bool isBetterThan(UserCut *other);

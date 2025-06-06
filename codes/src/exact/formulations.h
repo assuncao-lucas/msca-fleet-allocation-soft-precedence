@@ -18,7 +18,7 @@ public:
   VarToIndexMap() = default;
   ~VarToIndexMap() = default;
 
-  int varToIndex(int i, int j)
+  int varToIndex(int i, int j) const
   {
     auto element = var_to_index_map_.find({i, j});
     if (element == var_to_index_map_.end())
@@ -27,7 +27,7 @@ public:
       return element->second;
   }
 
-  std::pair<int, int> indexToVar(int index)
+  std::pair<int, int> indexToVar(int index) const
   {
     auto element = index_to_var_map_.find(index);
     if (element == index_to_var_map_.end())
@@ -269,6 +269,8 @@ public:
   VarToIndexMap Y_var_to_index_;
 };
 
+static UserCut *GenerateCliqueConflictCuts(Instance &instance, const VarToIndexMap &var_to_index_map, const IloNumVarArray &item_to_vehicle_or_slot_vars, const IloNumArray &item_to_vehicle_or_slot_values, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts);
+
 template <class T>
 void SetSolutionStatus(IloCplex &cplex, Solution<T> &solution, bool solve_relax)
 {
@@ -314,15 +316,16 @@ class Model // abstract class for the models.
 public:
   Model() = default;
   ~Model();
-  virtual void solve(const Instance &instance, double time_limit) = 0;
+  virtual void fillSolution(const Instance &instance, Solution<double> &solution) = 0;
+  bool optimize(const Instance &instance, double total_time_limit, bool find_root_cuts, std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution);
 
 protected:
   virtual void allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars = false) = 0;
   virtual void populateByRow(const Instance &instance, bool reformulate, bool symmetry_breaking, bool export_model) = 0;
-  void optimize(const Instance &instance, double total_time_limit, bool use_valid_inequalities, bool find_root_cuts, std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution);
   virtual void addInitialCuts(std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution);
   virtual void addCut(UserCut *curr_cut) = 0;
   virtual bool findAndAddValidInqualities(const Instance &instance, Solution<double> &sol, std::list<UserCut *> *root_cuts);
+  virtual UserCut *separateCuts(const Instance &instance, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts) = 0;
 
   IloEnv *env_ = nullptr;     // Cplex environment.
   IloCplex *cplex_ = nullptr; // Cplex solver.
@@ -336,12 +339,13 @@ class VehicleSequencingModel : public Model
 public:
   explicit VehicleSequencingModel(Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed, bool export_model);
   ~VehicleSequencingModel() = default;
-  virtual void solve(const Instance &instance, double time_limit);
+  virtual void fillSolution(const Instance &instance, Solution<double> &solution);
 
 private:
   virtual void allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars = false);
   virtual void populateByRow(const Instance &instance, bool reformulate, bool symmetry_breaking, bool export_model);
   virtual void addCut(UserCut *curr_cut);
+  virtual UserCut *separateCuts(const Instance &instance, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts);
 
   VehicleSequencingModelVariables vars_;
 };
@@ -351,12 +355,13 @@ class ItemSequencingModel : public Model
 public:
   explicit ItemSequencingModel(Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed, bool export_model);
   ~ItemSequencingModel() = default;
-  virtual void solve(const Instance &instance, double time_limit);
+  virtual void fillSolution(const Instance &instance, Solution<double> &solution);
 
 private:
   virtual void allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars = false);
   virtual void populateByRow(const Instance &instance, bool reformulate, bool symmetry_breaking, bool export_model);
   virtual void addCut(UserCut *curr_cut);
+  virtual UserCut *separateCuts(const Instance &instance, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts);
 
   ItemSequencingModelVariables vars_;
 };
@@ -366,12 +371,13 @@ class VehicleSlotsModel : public Model
 public:
   explicit VehicleSlotsModel(Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed, bool export_model);
   ~VehicleSlotsModel() = default;
-  virtual void solve(const Instance &instance, double time_limit);
+  virtual void fillSolution(const Instance &instance, Solution<double> &solution);
 
 private:
   virtual void allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars = false);
   virtual void populateByRow(const Instance &instance, bool reformulate, bool symmetry_breaking, bool export_model);
   virtual void addCut(UserCut *curr_cut);
+  virtual UserCut *separateCuts(const Instance &instance, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts);
 
   VehicleSlotsModelVariables vars_;
 };
