@@ -69,6 +69,11 @@ static UserCut *GenerateCliqueConflictCuts(const Instance &instance, const VarTo
 }
 
 // Model.
+
+Model::Model(const Instance &instance) : instance_(instance)
+{
+}
+
 Model::~Model()
 {
   if (cplex_)
@@ -90,19 +95,28 @@ Model::~Model()
   }
 }
 
-bool Model::optimize(const Instance &instance, double total_time_limit, bool find_root_cuts, std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution)
+void Model::set_multithreading(bool multithreading)
+{
+  if (multithreading)
+    cplex_->setParam(IloCplex::Param::Threads, cplex_->getNumCores());
+  else
+    cplex_->setParam(IloCplex::Param::Threads, 1);
+}
+
+bool Model::optimize(double total_time_limit, bool find_root_cuts, std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution)
 {
   Timestamp *ti = NewTimestamp(), *tf = NewTimestamp();
   Timer *timer = GetTimer();
   timer->Clock(ti);
   bool found_cuts = false;
 
+  cplex_->setParam(IloCplex::Param::ClockType, 2);
   cplex_->setParam(IloCplex::Param::WorkMem, 100000);
   std::cout << "limit of memory 100000MB" << std::endl;
   cplex_->setParam(IloCplex::IloCplex::Param::MIP::Strategy::File, 3);
   cplex_->setOut(env_->getNullStream());
 
-  addInitialCuts(initial_cuts, root_cuts, solution);
+  addInitialCuts(initial_cuts, solution);
 
   // if solving relaxed problem, force dual cplex method (multithreading showed to be slower! Dual cplex forces single threading and is also useful when
   // the main LP is solved several times, either on Benders or while separating valid inequalities).
@@ -117,7 +131,7 @@ bool Model::optimize(const Instance &instance, double total_time_limit, bool fin
 
   if (!double_equals(total_time_limit, -1))
   {
-    // std::cout << total_time_limit - instance.time_spent_in_preprocessing() << std::endl;
+    // std::cout << total_time_limit - instance_.time_spent_in_preprocessing() << std::endl;
     cplex_->setParam(IloCplex::Param::ClockType, 2);
     double time_left = total_time_limit;
     cplex_->setParam(IloCplex::Param::TimeLimit, time_left);
@@ -158,7 +172,7 @@ bool Model::optimize(const Instance &instance, double total_time_limit, bool fin
       curr_bound = cplex_->getObjValue();
 
       if (find_root_cuts) // && double_less(curr_bound, previous_bound, K_TAILING_OFF_TOLERANCE))
-        found_cuts |= findAndAddValidInqualities(instance, solution, root_cuts);
+        found_cuts |= findAndAddValidInqualities(solution, root_cuts);
     }
   } while (found_cuts);
 
@@ -175,7 +189,7 @@ bool Model::optimize(const Instance &instance, double total_time_limit, bool fin
   return true;
 }
 
-void Model::addInitialCuts(std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution)
+void Model::addInitialCuts(std::list<UserCut *> *initial_cuts, Solution<double> &solution)
 {
   if ((initial_cuts != nullptr) && (!(initial_cuts->empty())))
   {
@@ -183,20 +197,28 @@ void Model::addInitialCuts(std::list<UserCut *> *initial_cuts, std::list<UserCut
     for (std::list<UserCut *>::iterator it = initial_cuts->begin(); it != initial_cuts->end(); it++)
     {
       UserCut *curr_user_cut = static_cast<UserCut *>((*it));
-      addCut(curr_user_cut);
+      addCut(curr_user_cut, std::reference_wrapper<IloRangeArray>(root_cuts));
       solution.set_cut_added(K_TYPE_CLIQUE_CONFLICT_CUT, false);
 
       // delete (*it);
       //*it = NULL;
     }
 
-    is_relaxed_ ? model_->add(root_cuts) : cplex_->addUserCuts(root_cuts);
-    root_cuts.endElements();
+    if (is_relaxed_)
+    {
+      model_->add(root_cuts); // uses reference to root_cuts.
+    }
+    else
+    {
+      cplex_->addUserCuts(root_cuts); // makes copy of root_cuts, then, can delete each element.
+      root_cuts.endElements();
+    }
+
     root_cuts.end();
   }
 }
 
-bool Model::findAndAddValidInqualities(const Instance &instance, Solution<double> &sol, std::list<UserCut *> *root_cuts)
+bool Model::findAndAddValidInqualities(Solution<double> &sol, std::list<UserCut *> *root_cuts)
 {
   std::cout << " ***************** looking for cuts" << std::endl;
   bool found_cut = false;
@@ -208,7 +230,7 @@ bool Model::findAndAddValidInqualities(const Instance &instance, Solution<double
 
   best_cut = nullptr;
   // find clique conflict cuts.
-  local_best_cut = separateCuts(instance, root_cuts, sol, cuts);
+  local_best_cut = separateCuts(root_cuts, sol, cuts);
 
   if ((local_best_cut != nullptr) && (local_best_cut->isBetterThan(best_cut)))
     best_cut = local_best_cut;
@@ -218,7 +240,7 @@ bool Model::findAndAddValidInqualities(const Instance &instance, Solution<double
     found_cut = true;
 
     // adds best cut (most violated).
-    addCut(best_cut);
+    addCut(best_cut, nullopt);
     sol.set_cut_added(K_TYPE_CLIQUE_CONFLICT_CUT, true);
     std::cout << "added cut to LP: " << std::endl;
     // for (auto i : best_cut->rhs_nonzero_coefficients_indexes_)
@@ -249,7 +271,7 @@ bool Model::findAndAddValidInqualities(const Instance &instance, Solution<double
       bool is_sufficiently_orthogonal = double_less((*curr_cut) * (*best_cut), K_CUTS_ANGLE_COSIN_LIMIT);
       if (is_sufficiently_orthogonal)
       {
-        addCut(curr_cut);
+        addCut(curr_cut, nullopt);
 
         sol.set_cut_added(K_TYPE_CLIQUE_CONFLICT_CUT, true);
         // std::cout << "added cut to LP 2: " << std::endl;
@@ -332,7 +354,7 @@ operator<<(std::ostream &out, const VehicleSequencingModelVariables &vars)
   return out;
 }
 
-void VehicleSequencingModel::addCut(UserCut *curr_cut)
+void VehicleSequencingModel::addCut(UserCut *curr_cut, std::optional<std::reference_wrapper<IloRangeArray>> root_cuts)
 {
   IloExpr exp(*env_);
   int vehicle = -1, item = -1;
@@ -343,24 +365,28 @@ void VehicleSequencingModel::addCut(UserCut *curr_cut)
     exp += vars_.x(vehicle, item);
   }
 
-  model_->add(exp <= 1);
+  if (root_cuts.has_value())
+    root_cuts->get().add(exp <= 1);
+  else
+    model_->add(exp <= 1);
+
   exp.end();
-  cplex_->exportModel("vehicle_sequencing_model.lp");
+  // cplex_->exportModel("vehicle_sequencing_model.lp");
 }
 
-void VehicleSequencingModel::allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars)
+void VehicleSequencingModel::allocateVariables(bool reformulate)
 {
-  const int num_items = instance.num_items();
-  const int num_items_for_transport = instance.num_items_for_transport();
-  const int num_vehicles = instance.num_vehicles();
-  const auto &successors_for_transport_per_item = instance.successors_for_transport_per_item();
+  const int num_items = instance_.num_items();
+  const int num_items_for_transport = instance_.num_items_for_transport();
+  const int num_vehicles = instance_.num_vehicles();
+  const auto &successors_for_transport_per_item = instance_.successors_for_transport_per_item();
 
-  double binary_upper_bound = disable_all_binary_vars ? 0.0 : 1.0;
+  double binary_upper_bound = 1.0;
   auto type = is_relaxed_ ? ILOFLOAT : ILOINT;
 
   // fill x variables and index map.
   for (int i = 0; i < num_vehicles; ++i)
-    for (auto j : instance.items_for_transport())
+    for (auto j : instance_.items_for_transport())
       vars_.x_var_to_index_.addEntry(i, j);
 
   vars_.x_ = IloNumVarArray(*env_, vars_.x_var_to_index_.numVars(), 0.0, binary_upper_bound, type);
@@ -374,7 +400,7 @@ void VehicleSequencingModel::allocateVariables(const Instance &instance, bool re
   vars_.z_ = IloNumVarArray(*env_, vars_.z_var_to_index_.numVars(), 0.0, binary_upper_bound, type);
 
   // fill w variables and index map.
-  for (auto i : instance.items_for_transport())
+  for (auto i : instance_.items_for_transport())
   {
     for (auto &k : successors_for_transport_per_item[i])
       vars_.w_var_to_index_.addEntry(i, k);
@@ -393,17 +419,120 @@ void VehicleSequencingModel::allocateVariables(const Instance &instance, bool re
   {
     // fill X variables and index map.
     for (int i = 0; i < num_vehicles; ++i)
-      for (auto &[group, _] : instance.items_for_transport_per_group())
+      for (auto &[group, _] : instance_.items_for_transport_per_group())
         vars_.X_var_to_index_.addEntry(i, group);
 
     vars_.X_ = IloNumVarArray(*env_, vars_.X_var_to_index_.numVars(), 0.0, binary_upper_bound, type);
   }
+  else
+    vars_.X_ = IloNumVarArray(*env_); // just to initialize and avoid seg fault when getting size of X_.
+
+  all_vars_array_ = IloNumVarArray(*env_);
+  vars_.fill_all_vars_array(all_vars_array_);
 }
 
-VehicleSequencingModel::VehicleSequencingModel(Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed, bool export_model)
+void VehicleSequencingModel::UpdateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active)
+{
+  const int num_vehicles = instance_.num_vehicles();
+  const auto successors_for_transport_per_item = instance_.successors_for_transport_per_item();
+  const auto all_items = instance_.items();
+
+  // add new variables to kernel.
+  for (size_t item = items_entering.find_first(); item != boost::dynamic_bitset<>::npos; item = items_entering.find_next(item))
+  {
+    // activate x variables.
+    for (int i = 0; i < num_vehicles; ++i)
+      vars_.x(i, item).setUB(1.0);
+
+    // all z variables already active (only indexed by vehicles).
+
+    // activate w variables.
+    for (auto &k : successors_for_transport_per_item[item]) // activate for all successors (if i prec j  and at least one (i or j) is active, the ordering can be violated).
+      vars_.w(item, k).setUB(1.0);
+
+    // activate U variables.
+    // if (!(successors_for_transport_per_item[item].empty()))
+    //   vars_.U(item).setUB(1.0);
+
+    if (reformulated_)
+    {
+      // activate X variables.
+      for (int i = 0; i < num_vehicles; ++i)
+        vars_.X(i, (all_items[item])->group()).setUB(1.0);
+    }
+  }
+
+  // remove variables leaving kernel.
+  for (size_t item = items_leaving.find_first(); item != boost::dynamic_bitset<>::npos; item = items_leaving.find_next(item))
+  {
+    // deactivate x variables.
+    for (int i = 0; i < num_vehicles; ++i)
+      vars_.x(i, item).setUB(0.0);
+
+    // all z variables remain active (only indexed by vehicles).
+
+    // deactivate w variables.
+    for (auto &k : successors_for_transport_per_item[item])
+      if (items_active[k] == 0) // only deactivate if the successor is also inactive (then, there is no chance for violating precedence).
+        vars_.w(item, k).setUB(0.0);
+
+    // deactivate U variables.
+    // if (!(successors_for_transport_per_item[item].empty()))
+    //   vars_.U(item).setUB(0.0);
+
+    if (reformulated_)
+    {
+      // deactivate X variables.
+      for (int i = 0; i < num_vehicles; ++i)
+      {
+        const int group = (all_items[item])->group();
+        bool all_items_of_group_inactive = true;
+
+        // only deactivate if all items of group are currently inactive.
+        for (auto item_in_group : instance_.items_for_transport_per_group().at(group))
+        {
+          if (items_active[item_in_group] == 1)
+          {
+            all_items_of_group_inactive = false;
+            break;
+          }
+        }
+
+        if (all_items_of_group_inactive)
+          vars_.X(i, group).setUB(0.0);
+      }
+    }
+  }
+}
+
+void VehicleSequencingModel::getSolutionItems(boost::dynamic_bitset<> &curr_items)
+{
+  curr_items.reset();
+  IloNumArray x_values(*env_);
+  cplex_->getValues(x_values, vars_.x_);
+  const int num_vehicles = instance_.num_vehicles();
+
+  for (auto j : instance_.items_for_transport())
+  {
+    for (int i = 0; i < num_vehicles; ++i)
+    {
+      auto index = vars_.x_index(i, j);
+      if (double_equals(x_values[index], 1.0))
+      {
+        curr_items[j] = 1;
+        break;
+      }
+    }
+  }
+
+  x_values.end();
+}
+
+VehicleSequencingModel::VehicleSequencingModel(const Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed) : Model(inst)
 {
   is_relaxed_ = relaxed;
   reformulated_ = reformulate;
+  symmetry_breaking_ = symmetry_breaking;
 
   env_ = new IloEnv();
   model_ = new IloModel(*env_);
@@ -411,22 +540,22 @@ VehicleSequencingModel::VehicleSequencingModel(Instance &inst, bool reformulate,
 
   cplex_->extract(*model_);
 
-  allocateVariables(inst, reformulate);
+  allocateVariables(reformulate);
 
   std::cout << vars_ << std::endl;
 
-  populateByRow(inst, reformulate, symmetry_breaking, export_model);
+  populateByRow(reformulate, symmetry_breaking);
 }
 
-void VehicleSequencingModel::populateByRow(const Instance &instance, bool reformulate, bool symmetry_breaking, bool export_model)
+void VehicleSequencingModel::populateByRow(bool reformulate, bool symmetry_breaking)
 {
   IloExpr obj(*env_);
-  const int num_vehicles = instance.num_vehicles();
-  const auto &items = instance.items();
-  const int num_items = instance.num_items();
-  // const auto &successors_fixed_per_item = instance.successors_fixed_per_item();
-  const auto &successors_for_transport_per_item = instance.successors_for_transport_per_item();
-  const auto &fleet = instance.fleet();
+  const int num_vehicles = instance_.num_vehicles();
+  const auto &items = instance_.items();
+  const int num_items = instance_.num_items();
+  // const auto &successors_fixed_per_item = instance_.successors_fixed_per_item();
+  const auto &successors_for_transport_per_item = instance_.successors_for_transport_per_item();
+  const auto &fleet = instance_.fleet();
   int M = 0;
 
   // compute M.
@@ -455,7 +584,7 @@ void VehicleSequencingModel::populateByRow(const Instance &instance, bool reform
   obj.end();
 
   // Restrictions (6).
-  for (auto &j : instance.items_for_transport())
+  for (auto &j : instance_.items_for_transport())
   {
     IloExpr exp(*env_);
     for (int i = 0; i < num_vehicles; ++i)
@@ -470,7 +599,7 @@ void VehicleSequencingModel::populateByRow(const Instance &instance, bool reform
     for (int i = 0; i < num_vehicles; ++i)
     {
       IloExpr exp(*env_);
-      for (auto &[group, items] : instance.items_for_transport_per_group())
+      for (auto &[group, items] : instance_.items_for_transport_per_group())
       {
         exp += vars_.X(i, group);
         IloExpr sum_items(*env_);
@@ -489,9 +618,9 @@ void VehicleSequencingModel::populateByRow(const Instance &instance, bool reform
   else
   {
     // Restrictions (7).
-    for (auto &j : instance.items_for_transport())
+    for (auto &j : instance_.items_for_transport())
     {
-      for (auto &k : instance.items_for_transport())
+      for (auto &k : instance_.items_for_transport())
       {
         if ((j < k) && (items[j]->group() != items[k]->group()))
         {
@@ -510,7 +639,7 @@ void VehicleSequencingModel::populateByRow(const Instance &instance, bool reform
   for (int i = 0; i < num_vehicles; ++i)
   {
     IloExpr exp(*env_);
-    for (auto &j : instance.items_for_transport())
+    for (auto &j : instance_.items_for_transport())
       exp += vars_.x(i, j);
     model_->add(exp <= fleet[i]->capacity());
     exp.end();
@@ -558,7 +687,7 @@ void VehicleSequencingModel::populateByRow(const Instance &instance, bool reform
   }
 
   // Restrictions (13) and (14).
-  for (auto &j : instance.items_for_transport())
+  for (auto &j : instance_.items_for_transport())
   {
     for (auto &k : successors_for_transport_per_item[j])
     {
@@ -586,7 +715,7 @@ void VehicleSequencingModel::populateByRow(const Instance &instance, bool reform
       for (int h = i + 1; h < num_vehicles; ++h)
       {
         IloExpr sum_X_i_q(*env_), sum_X_h_q(*env_);
-        for (auto &[q, _] : instance.items_for_transport_per_group())
+        for (auto &[q, _] : instance_.items_for_transport_per_group())
         {
           sum_X_i_q += vars_.X(i, q);
           sum_X_h_q += vars_.X(h, q);
@@ -601,7 +730,7 @@ void VehicleSequencingModel::populateByRow(const Instance &instance, bool reform
     }
   }
 
-  if (export_model)
+  // if (export_model)
   {
     // add name to variables.
     for (auto &[key, value] : vars_.x_var_to_index_.index_to_var_map())
@@ -641,11 +770,11 @@ void VehicleSequencingModel::populateByRow(const Instance &instance, bool reform
         vars_.X_[key].setName(strnum);
       }
     }
-    cplex_->exportModel("vehicle_sequencing_model.lp");
+    // cplex_->exportModel("vehicle_sequencing_model.lp");
   }
 }
 
-void VehicleSequencingModel::fillSolution(const Instance &inst, Solution<double> &solution)
+void VehicleSequencingModel::fillSolution(Solution<double> &solution)
 {
   int num_items_loaded = 0;
   int num_unproductive_moves = 0;
@@ -658,9 +787,9 @@ void VehicleSequencingModel::fillSolution(const Instance &inst, Solution<double>
   if (solution.is_feasible_)
   {
 
-    int num_vehicles = inst.num_vehicles();
-    int num_items = inst.num_items();
-    const auto &successors_for_transport_per_item = inst.successors_for_transport_per_item();
+    int num_vehicles = instance_.num_vehicles();
+    int num_items = instance_.num_items();
+    const auto &successors_for_transport_per_item = instance_.successors_for_transport_per_item();
 
     IloNumArray x_values(*env_), z_values(*env_), w_values(*env_), U_values(*env_);
     cplex_->getValues(x_values, vars_.x_);
@@ -671,7 +800,7 @@ void VehicleSequencingModel::fillSolution(const Instance &inst, Solution<double>
     // get values of x variables.
     for (int i = 0; i < num_vehicles; ++i)
     {
-      for (auto j : inst.items_for_transport())
+      for (auto j : instance_.items_for_transport())
       {
         auto value = x_values[vars_.x_index(i, j)];
         if (!double_equals(value, 0.0))
@@ -697,7 +826,7 @@ void VehicleSequencingModel::fillSolution(const Instance &inst, Solution<double>
     }
 
     // get values of w variables.
-    for (auto i : inst.items_for_transport())
+    for (auto i : instance_.items_for_transport())
     {
       for (auto &k : successors_for_transport_per_item[i])
       {
@@ -729,7 +858,7 @@ void VehicleSequencingModel::fillSolution(const Instance &inst, Solution<double>
       // get values of X variables.
       for (int i = 0; i < num_vehicles; ++i)
       {
-        for (auto &[group, _] : inst.items_for_transport_per_group())
+        for (auto &[group, _] : instance_.items_for_transport_per_group())
         {
           auto value = X_values[vars_.X_index(i, group)];
           if (!double_equals(value, 0.0))
@@ -748,11 +877,62 @@ void VehicleSequencingModel::fillSolution(const Instance &inst, Solution<double>
   }
 }
 
-UserCut *VehicleSequencingModel::separateCuts(const Instance &instance, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts)
+IloNumArray VehicleSequencingModel::get_items_reduced_costs()
+{
+  IloNumArray x_reduced_costs(*env_);
+  IloNumArray items_reduced_costs(*env_, instance_.num_items());
+  cplex_->getReducedCosts(x_reduced_costs, vars_.x_);
+  int num_vehicles = instance_.num_vehicles();
+
+  // sum x values for each item for transport.
+  for (int i = 0; i < num_vehicles; ++i)
+    for (auto j : instance_.items_for_transport())
+      items_reduced_costs[j] += x_reduced_costs[vars_.x_index(i, j)];
+
+  // print
+  for (auto j : instance_.items_for_transport())
+  {
+    for (int i = 0; i < num_vehicles; ++i)
+    {
+      std::cout << "x[" << i << "][" << j << "] = " << x_reduced_costs[vars_.x_index(i, j)] << std::endl;
+    }
+    std::cout << "sum " << j << " : " << items_reduced_costs[j] << std::endl;
+  }
+
+  return std::move(items_reduced_costs);
+}
+
+IloNumArray VehicleSequencingModel::get_items_values()
+{
+  IloNumArray x_values(*env_);
+  IloNumArray items_values(*env_, instance_.num_items());
+  cplex_->getValues(x_values, vars_.x_);
+
+  int num_vehicles = instance_.num_vehicles();
+
+  // sum x values for each item for transport.
+  for (int i = 0; i < num_vehicles; ++i)
+    for (auto j : instance_.items_for_transport())
+      items_values[j] += x_values[vars_.x_index(i, j)];
+
+  // print
+  for (auto j : instance_.items_for_transport())
+  {
+    for (int i = 0; i < num_vehicles; ++i)
+    {
+      std::cout << "x[" << i << "][" << j << "] = " << x_values[vars_.x_index(i, j)] << std::endl;
+    }
+    std::cout << "sum " << j << " : " << items_values[j] << std::endl;
+  }
+
+  return std::move(items_values);
+}
+
+UserCut *VehicleSequencingModel::separateCuts(bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts)
 {
   IloNumArray item_to_vehicle_or_slot_values(*env_);
   cplex_->getValues(vars_.x_, item_to_vehicle_or_slot_values);
-  return GenerateCliqueConflictCuts(instance, vars_.x_var_to_index_, vars_.x_, item_to_vehicle_or_slot_values, root_cuts, sol, cuts);
+  return GenerateCliqueConflictCuts(instance_, vars_.x_var_to_index_, vars_.x_, item_to_vehicle_or_slot_values, root_cuts, sol, cuts);
 }
 
 // Item Sequencing model.
@@ -774,7 +954,7 @@ operator<<(std::ostream &out, const ItemSequencingModelVariables &vars)
   return out;
 }
 
-void ItemSequencingModel::addCut(UserCut *curr_cut)
+void ItemSequencingModel::addCut(UserCut *curr_cut, std::optional<std::reference_wrapper<IloRangeArray>> root_cuts)
 {
   IloExpr exp(*env_);
   int vehicle = -1, item = -1;
@@ -785,30 +965,84 @@ void ItemSequencingModel::addCut(UserCut *curr_cut)
     exp += vars_.x(vehicle, item);
   }
 
-  model_->add(exp <= 1);
+  if (root_cuts.has_value())
+    root_cuts->get().add(exp <= 1);
+  else
+    model_->add(exp <= 1);
+
   exp.end();
 }
 
-void ItemSequencingModel::allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars)
+IloNumArray ItemSequencingModel::get_items_reduced_costs()
 {
-  const int num_items = instance.num_items();
-  const int num_items_for_transport = instance.num_items_for_transport();
-  const int num_vehicles = instance.num_vehicles();
-  const auto &successors_for_transport_per_item = instance.successors_for_transport_per_item();
+  IloNumArray x_reduced_costs(*env_);
+  IloNumArray items_reduced_costs(*env_, instance_.num_items());
+  cplex_->getReducedCosts(x_reduced_costs, vars_.x_);
+  int num_vehicles = instance_.num_vehicles();
 
-  double binary_upper_bound = disable_all_binary_vars ? 0.0 : 1.0;
+  // sum x values for each item for transport.
+  for (int i = 0; i < num_vehicles; ++i)
+    for (auto j : instance_.items_for_transport())
+      items_reduced_costs[j] += x_reduced_costs[vars_.x_index(i, j)];
+
+  // print
+  for (auto j : instance_.items_for_transport())
+  {
+    for (int i = 0; i < num_vehicles; ++i)
+    {
+      std::cout << "x[" << i << "][" << j << "] = " << x_reduced_costs[vars_.x_index(i, j)] << std::endl;
+    }
+    std::cout << "sum " << j << " : " << items_reduced_costs[j] << std::endl;
+  }
+
+  return std::move(items_reduced_costs);
+}
+
+IloNumArray ItemSequencingModel::get_items_values()
+{
+  IloNumArray x_values(*env_);
+  IloNumArray items_values(*env_, instance_.num_items());
+  cplex_->getValues(x_values, vars_.x_);
+  int num_vehicles = instance_.num_vehicles();
+
+  // sum x values for each item for transport.
+  for (int i = 0; i < num_vehicles; ++i)
+    for (auto j : instance_.items_for_transport())
+      items_values[j] += x_values[vars_.x_index(i, j)];
+
+  // print
+  for (auto j : instance_.items_for_transport())
+  {
+    for (int i = 0; i < num_vehicles; ++i)
+    {
+      std::cout << "x[" << i << "][" << j << "] = " << x_values[vars_.x_index(i, j)] << std::endl;
+    }
+    std::cout << "sum " << j << " : " << items_values[j] << std::endl;
+  }
+
+  return std::move(items_values);
+}
+
+void ItemSequencingModel::allocateVariables(bool reformulate)
+{
+  const int num_items = instance_.num_items();
+  const int num_items_for_transport = instance_.num_items_for_transport();
+  const int num_vehicles = instance_.num_vehicles();
+  const auto &successors_for_transport_per_item = instance_.successors_for_transport_per_item();
+
+  double binary_upper_bound = 1.0;
   auto type = is_relaxed_ ? ILOFLOAT : ILOINT;
 
   // fill x variables and index map.
   for (int i = 0; i < num_vehicles; ++i)
-    for (auto j : instance.items_for_transport())
+    for (auto j : instance_.items_for_transport())
       vars_.x_var_to_index_.addEntry(i, j);
 
   vars_.x_ = IloNumVarArray(*env_, vars_.x_var_to_index_.numVars(), 0.0, binary_upper_bound, type);
 
   // fill u variables and index map.
-  for (auto j : instance.items_for_transport())
-    for (auto k : instance.items_for_transport())
+  for (auto j : instance_.items_for_transport())
+    for (auto k : instance_.items_for_transport())
       if (j != k)
         vars_.u_var_to_index_.addEntry(j, k);
 
@@ -825,32 +1059,134 @@ void ItemSequencingModel::allocateVariables(const Instance &instance, bool refor
   {
     // fill X variables and index map.
     for (int i = 0; i < num_vehicles; ++i)
-      for (auto &[group, _] : instance.items_for_transport_per_group())
+      for (auto &[group, _] : instance_.items_for_transport_per_group())
         vars_.X_var_to_index_.addEntry(i, group);
 
     vars_.X_ = IloNumVarArray(*env_, vars_.X_var_to_index_.numVars(), 0.0, binary_upper_bound, type);
   }
+  else
+    vars_.X_ = IloNumVarArray(*env_); // just to initialize and avoid seg fault when getting size of X_.
+
+  all_vars_array_ = IloNumVarArray(*env_);
+  vars_.fill_all_vars_array(all_vars_array_);
 }
 
-ItemSequencingModel::ItemSequencingModel(Instance &inst, bool reformulate, bool add_symmetry_breaking, bool solve_relax, bool export_model)
+void ItemSequencingModel::UpdateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active)
+{
+  const int num_vehicles = instance_.num_vehicles();
+  const auto successors_for_transport_per_item = instance_.successors_for_transport_per_item();
+  const auto all_items = instance_.items();
+
+  // add new variables to kernel.
+  for (size_t item = items_entering.find_first(); item != boost::dynamic_bitset<>::npos; item = items_entering.find_next(item))
+  {
+    // activate x variables.
+    for (int i = 0; i < num_vehicles; ++i)
+      vars_.x(i, item).setUB(1.0);
+
+    // activate u variables.
+    // for (auto k : instance_.items_for_transport())
+    //   if ((item != k) && (items_active[k] == 1)) // activate only if other item is also active.
+    //     vars_.u(item, k).setUB(1.0);
+
+    // activate U variables.
+    // if (!(successors_for_transport_per_item[item].empty()))
+    //   vars_.U(item).setUB(1.0);
+
+    if (reformulated_)
+    {
+      // activate X variables.
+      for (int i = 0; i < num_vehicles; ++i)
+        vars_.X(i, (all_items[item])->group()).setUB(1.0);
+    }
+  }
+
+  // remove variables leaving kernel.
+  for (size_t item = items_leaving.find_first(); item != boost::dynamic_bitset<>::npos; item = items_leaving.find_next(item))
+  {
+
+    // deactivate x variables.
+    for (int i = 0; i < num_vehicles; ++i)
+      vars_.x(i, item).setUB(0.0);
+
+    // deactivate u variables.
+    // for (auto k : instance_.items_for_transport())
+    //   if (item != k) // always deactivate, since needs the two items active to activate it.
+    //     vars_.u(item, k).setUB(0.0);
+
+    // deactivate U variables.
+    // if (!(successors_for_transport_per_item[item].empty()))
+    //   vars_.U(item).setUB(0.0);
+
+    if (reformulated_)
+    {
+      // deactivate X variables.
+      for (int i = 0; i < num_vehicles; ++i)
+      {
+        const int group = (all_items[item])->group();
+        bool all_items_of_group_inactive = true;
+
+        // only deactivate if all items of group are currently inactive.
+        for (auto item_in_group : instance_.items_for_transport_per_group().at(group))
+        {
+          if (items_active[item_in_group] == 1)
+          {
+            all_items_of_group_inactive = false;
+            break;
+          }
+        }
+
+        if (all_items_of_group_inactive)
+          vars_.X(i, group).setUB(0.0);
+      }
+    }
+  }
+}
+
+void ItemSequencingModel::getSolutionItems(boost::dynamic_bitset<> &curr_items)
+{
+  curr_items.reset();
+  IloNumArray x_values(*env_);
+  cplex_->getValues(x_values, vars_.x_);
+  const int num_vehicles = instance_.num_vehicles();
+
+  for (auto j : instance_.items_for_transport())
+  {
+    for (int i = 0; i < num_vehicles; ++i)
+    {
+      auto index = vars_.x_index(i, j);
+      if (double_equals(x_values[index], 1.0))
+      {
+        curr_items[j] = 1;
+        break;
+      }
+    }
+  }
+
+  x_values.end();
+}
+
+ItemSequencingModel::ItemSequencingModel(const Instance &instance, bool reformulate, bool add_symmetry_breaking, bool solve_relax) : Model(instance)
 {
   is_relaxed_ = solve_relax;
   reformulated_ = reformulate;
-  const int num_vertices = inst.num_items();
+  symmetry_breaking_ = add_symmetry_breaking;
+
+  const int num_vertices = instance_.num_items();
 
   env_ = new IloEnv();
   model_ = new IloModel(*env_);
   cplex_ = new IloCplex(*env_);
   cplex_->extract(*model_);
 
-  allocateVariables(inst, reformulate);
+  allocateVariables(reformulate);
 
   std::cout << vars_ << std::endl;
 
-  populateByRow(inst, reformulate, add_symmetry_breaking, export_model);
+  populateByRow(reformulate, add_symmetry_breaking);
 }
 
-void ItemSequencingModel::fillSolution(const Instance &inst, Solution<double> &solution)
+void ItemSequencingModel::fillSolution(Solution<double> &solution)
 {
   int num_items_loaded = 0;
   int num_unproductive_moves = 0;
@@ -863,9 +1199,9 @@ void ItemSequencingModel::fillSolution(const Instance &inst, Solution<double> &s
   if (solution.is_feasible_)
   {
 
-    int num_vehicles = inst.num_vehicles();
-    int num_items = inst.num_items();
-    const auto &successors_for_transport_per_item = inst.successors_for_transport_per_item();
+    int num_vehicles = instance_.num_vehicles();
+    int num_items = instance_.num_items();
+    const auto &successors_for_transport_per_item = instance_.successors_for_transport_per_item();
 
     IloNumArray x_values(*env_), z_values(*env_), u_values(*env_), U_values(*env_);
     cplex_->getValues(x_values, vars_.x_);
@@ -875,7 +1211,7 @@ void ItemSequencingModel::fillSolution(const Instance &inst, Solution<double> &s
     // get values of x variables.
     for (int i = 0; i < num_vehicles; ++i)
     {
-      for (auto j : inst.items_for_transport())
+      for (auto j : instance_.items_for_transport())
       {
         auto value = x_values[vars_.x_index(i, j)];
         if (!double_equals(value, 0.0))
@@ -887,9 +1223,9 @@ void ItemSequencingModel::fillSolution(const Instance &inst, Solution<double> &s
     }
 
     // get values of u variables.
-    for (auto j : inst.items_for_transport())
+    for (auto j : instance_.items_for_transport())
     {
-      for (auto k : inst.items_for_transport())
+      for (auto k : instance_.items_for_transport())
       {
         if (j != k)
         {
@@ -922,7 +1258,7 @@ void ItemSequencingModel::fillSolution(const Instance &inst, Solution<double> &s
       // get values of X variables.
       for (int i = 0; i < num_vehicles; ++i)
       {
-        for (auto &[group, _] : inst.items_for_transport_per_group())
+        for (auto &[group, _] : instance_.items_for_transport_per_group())
         {
           auto value = X_values[vars_.X_index(i, group)];
           if (!double_equals(value, 0.0))
@@ -941,16 +1277,16 @@ void ItemSequencingModel::fillSolution(const Instance &inst, Solution<double> &s
   }
 }
 
-void ItemSequencingModel::populateByRow(const Instance &instance, bool reformulate, bool add_symmetry_breaking, bool export_model)
+void ItemSequencingModel::populateByRow(bool reformulate, bool add_symmetry_breaking)
 {
   IloExpr obj(*env_);
-  const int num_vehicles = instance.num_vehicles();
-  const auto &items = instance.items();
-  const int num_items = instance.num_items();
-  // const auto &successors_fixed_per_item = instance.successors_fixed_per_item();
-  const auto &successors_for_transport_per_item = instance.successors_for_transport_per_item();
-  const auto &fleet = instance.fleet();
-  const auto &items_for_transport = instance.items_for_transport();
+  const int num_vehicles = instance_.num_vehicles();
+  const auto &items = instance_.items();
+  const int num_items = instance_.num_items();
+  // const auto &successors_fixed_per_item = instance_.successors_fixed_per_item();
+  const auto &successors_for_transport_per_item = instance_.successors_for_transport_per_item();
+  const auto &fleet = instance_.fleet();
+  const auto &items_for_transport = instance_.items_for_transport();
   const int num_items_for_transport = items_for_transport.size();
   int M = 0;
 
@@ -980,7 +1316,7 @@ void ItemSequencingModel::populateByRow(const Instance &instance, bool reformula
   obj.end();
 
   // Restrictions (6).
-  for (auto &j : instance.items_for_transport())
+  for (auto &j : instance_.items_for_transport())
   {
     IloExpr exp(*env_);
     for (int i = 0; i < num_vehicles; ++i)
@@ -995,7 +1331,7 @@ void ItemSequencingModel::populateByRow(const Instance &instance, bool reformula
     for (int i = 0; i < num_vehicles; ++i)
     {
       IloExpr exp(*env_);
-      for (auto &[group, items] : instance.items_for_transport_per_group())
+      for (auto &[group, items] : instance_.items_for_transport_per_group())
       {
         exp += vars_.X(i, group);
         IloExpr sum_items(*env_);
@@ -1014,9 +1350,9 @@ void ItemSequencingModel::populateByRow(const Instance &instance, bool reformula
   else
   {
     // Restrictions (7).
-    for (auto &j : instance.items_for_transport())
+    for (auto &j : instance_.items_for_transport())
     {
-      for (auto &k : instance.items_for_transport())
+      for (auto &k : instance_.items_for_transport())
       {
         if ((j < k) && (items[j]->group() != items[k]->group()))
         {
@@ -1035,7 +1371,7 @@ void ItemSequencingModel::populateByRow(const Instance &instance, bool reformula
   for (int i = 0; i < num_vehicles; ++i)
   {
     IloExpr exp(*env_);
-    for (auto &j : instance.items_for_transport())
+    for (auto &j : instance_.items_for_transport())
       exp += vars_.x(i, j);
     model_->add(exp <= fleet[i]->capacity());
     exp.end();
@@ -1120,7 +1456,7 @@ void ItemSequencingModel::populateByRow(const Instance &instance, bool reformula
     }
   }
 
-  for (auto &[group_q, items_q] : instance.items_for_transport_per_group())
+  for (auto &[group_q, items_q] : instance_.items_for_transport_per_group())
   {
     for (auto j : items_q)
     {
@@ -1128,7 +1464,7 @@ void ItemSequencingModel::populateByRow(const Instance &instance, bool reformula
       {
         if (j < k)
         {
-          for (auto &[group_v, items_v] : instance.items_for_transport_per_group())
+          for (auto &[group_v, items_v] : instance_.items_for_transport_per_group())
           {
             // if (group_v != group_q)
             {
@@ -1175,7 +1511,7 @@ void ItemSequencingModel::populateByRow(const Instance &instance, bool reformula
     }
   }
 
-  if (export_model)
+  // if (export_model)
   {
     // add name to variables.
     for (auto &[key, value] : vars_.x_var_to_index_.index_to_var_map())
@@ -1208,15 +1544,14 @@ void ItemSequencingModel::populateByRow(const Instance &instance, bool reformula
         vars_.X_[key].setName(strnum);
       }
     }
-    cplex_->exportModel("item_sequencing_model.lp");
   }
 }
 
-UserCut *ItemSequencingModel::separateCuts(const Instance &instance, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts)
+UserCut *ItemSequencingModel::separateCuts(bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts)
 {
   IloNumArray item_to_vehicle_or_slot_values(*env_);
   cplex_->getValues(vars_.x_, item_to_vehicle_or_slot_values);
-  return GenerateCliqueConflictCuts(instance, vars_.x_var_to_index_, vars_.x_, item_to_vehicle_or_slot_values, root_cuts, sol, cuts);
+  return GenerateCliqueConflictCuts(instance_, vars_.x_var_to_index_, vars_.x_, item_to_vehicle_or_slot_values, root_cuts, sol, cuts);
 }
 
 // Vehicle slots model.
@@ -1238,7 +1573,7 @@ operator<<(std::ostream &out, const VehicleSlotsModelVariables &vars)
   return out;
 }
 
-void VehicleSlotsModel::addCut(UserCut *curr_cut)
+void VehicleSlotsModel::addCut(UserCut *curr_cut, std::optional<std::reference_wrapper<IloRangeArray>> root_cuts)
 {
   IloExpr exp(*env_);
   int vehicle = -1, item = -1;
@@ -1249,24 +1584,78 @@ void VehicleSlotsModel::addCut(UserCut *curr_cut)
     exp += vars_.y1(vehicle, item); // in this model, the cuts are related to the allocation of item to slots, instead of the actual vehicles.
   }
 
-  model_->add(exp <= 1);
+  if (root_cuts.has_value())
+    root_cuts->get().add(exp <= 1);
+  else
+    model_->add(exp <= 1);
+
   exp.end();
 }
 
-void VehicleSlotsModel::allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars)
+IloNumArray VehicleSlotsModel::get_items_reduced_costs()
 {
-  const int num_items = instance.num_items();
-  const int num_items_for_transport = instance.num_items_for_transport();
-  const int num_vehicles = instance.num_vehicles();
-  const int num_slots = num_vehicles;
-  const auto &successors_for_transport_per_item = instance.successors_for_transport_per_item();
+  IloNumArray y1_reduced_costs(*env_);
+  IloNumArray items_reduced_costs(*env_, instance_.num_items());
+  cplex_->getReducedCosts(y1_reduced_costs, vars_.y1_);
+  int num_vehicles = instance_.num_vehicles();
 
-  double binary_upper_bound = disable_all_binary_vars ? 0.0 : 1.0;
+  // sum x values for each item for transport.
+  for (int i = 0; i < num_vehicles; ++i)
+    for (auto j : instance_.items_for_transport())
+      items_reduced_costs[j] += y1_reduced_costs[vars_.y1_index(i, j)];
+
+  // print
+  for (auto j : instance_.items_for_transport())
+  {
+    for (int i = 0; i < num_vehicles; ++i)
+    {
+      std::cout << "x[" << i << "][" << j << "] = " << y1_reduced_costs[vars_.y1_index(i, j)] << std::endl;
+    }
+    std::cout << "sum " << j << " : " << items_reduced_costs[j] << std::endl;
+  }
+
+  return std::move(items_reduced_costs);
+}
+
+IloNumArray VehicleSlotsModel::get_items_values()
+{
+  IloNumArray y1_values(*env_);
+  IloNumArray items_values(*env_, instance_.num_items());
+  cplex_->getValues(y1_values, vars_.y1_);
+  int num_vehicles = instance_.num_vehicles();
+
+  // sum x values for each item for transport.
+  for (int i = 0; i < num_vehicles; ++i)
+    for (auto j : instance_.items_for_transport())
+      items_values[j] += y1_values[vars_.y1_index(i, j)];
+
+  // print
+  for (auto j : instance_.items_for_transport())
+  {
+    for (int i = 0; i < num_vehicles; ++i)
+    {
+      std::cout << "x[" << i << "][" << j << "] = " << y1_values[vars_.y1_index(i, j)] << std::endl;
+    }
+    std::cout << "sum " << j << " : " << items_values[j] << std::endl;
+  }
+
+  return std::move(items_values);
+}
+
+void VehicleSlotsModel::allocateVariables(bool reformulate)
+{
+  const int num_items = instance_.num_items();
+  const int num_items_for_transport = instance_.num_items_for_transport();
+  const int num_vehicles = instance_.num_vehicles();
+  const int num_slots = num_vehicles;
+  const auto &successors_for_transport_per_item = instance_.successors_for_transport_per_item();
+
+  double binary_upper_bound = 1.0;
   auto type = is_relaxed_ ? ILOFLOAT : ILOINT;
 
   // fill y1 variables and index map.
   for (int i = 0; i < num_slots; ++i)
-    for (auto j : instance.items_for_transport())
+    for (auto j : instance_.items_for_transport())
       vars_.y1_var_to_index_.addEntry(i, j);
 
   vars_.y1_ = IloNumVarArray(*env_, vars_.y1_var_to_index_.numVars(), 0.0, binary_upper_bound, type);
@@ -1287,21 +1676,117 @@ void VehicleSlotsModel::allocateVariables(const Instance &instance, bool reformu
 
   if (reformulate)
   {
-    // fill X variables and index map.
+    // fill Y variables and index map.
     for (int i = 0; i < num_slots; ++i)
-      for (auto &[group, _] : instance.items_for_transport_per_group())
+      for (auto &[group, _] : instance_.items_for_transport_per_group())
         vars_.Y_var_to_index_.addEntry(i, group);
 
     vars_.Y_ = IloNumVarArray(*env_, vars_.Y_var_to_index_.numVars(), 0.0, binary_upper_bound, type);
   }
+  else
+    vars_.Y_ = IloNumVarArray(*env_); // just to initialize and avoid seg fault when getting size of Y_.
+
+  all_vars_array_ = IloNumVarArray(*env_);
+  vars_.fill_all_vars_array(all_vars_array_);
 }
 
-VehicleSlotsModel::VehicleSlotsModel(Instance &inst, bool reformulate, bool add_symmetry_breaking, bool solve_relax, bool export_model)
+void VehicleSlotsModel::UpdateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active)
+{
+  const int num_vehicles = instance_.num_vehicles();
+  const int num_slots = num_vehicles;
+  const auto successors_for_transport_per_item = instance_.successors_for_transport_per_item();
+  const auto all_items = instance_.items();
+
+  // add new variables to kernel.
+  for (size_t item = items_entering.find_first(); item != boost::dynamic_bitset<>::npos; item = items_entering.find_next(item))
+  {
+    // activate y1 variables.
+    for (int i = 0; i < num_slots; ++i)
+      vars_.y1(i, item).setUB(1.0);
+
+    // all y2 variables already active (only indexed by vehicles/slots).
+
+    // activate U variables.
+    // if (!(successors_for_transport_per_item[item].empty()))
+    //   vars_.U(item).setUB(1.0);
+
+    if (reformulated_)
+    {
+      // activate Y variables.
+      for (int i = 0; i < num_vehicles; ++i)
+        vars_.Y(i, (all_items[item])->group()).setUB(1.0);
+    }
+  }
+
+  // remove variables leaving kernel.
+  for (size_t item = items_leaving.find_first(); item != boost::dynamic_bitset<>::npos; item = items_leaving.find_next(item))
+  {
+
+    // deactivate y1 variables.
+    for (int i = 0; i < num_slots; ++i)
+      vars_.y1(i, item).setUB(0.0);
+
+    // all y2 variables remain active (only indexed by vehicles).
+
+    // deactivate U variables.
+    // if (!(successors_for_transport_per_item[item].empty()))
+    //   vars_.U(item).setUB(0.0);
+
+    if (reformulated_)
+    {
+      // deactivate Y variables.
+      for (int i = 0; i < num_vehicles; ++i)
+      {
+        const int group = (all_items[item])->group();
+        bool all_items_of_group_inactive = true;
+
+        // only deactivate if all items of group are currently inactive.
+        for (auto item_in_group : instance_.items_for_transport_per_group().at(group))
+        {
+          if (items_active[item_in_group] == 1)
+          {
+            all_items_of_group_inactive = false;
+            break;
+          }
+        }
+
+        if (all_items_of_group_inactive)
+          vars_.Y(i, group).setUB(0.0);
+      }
+    }
+  }
+}
+
+void VehicleSlotsModel::getSolutionItems(boost::dynamic_bitset<> &curr_items)
+{
+  curr_items.reset();
+  IloNumArray y1_values(*env_);
+  cplex_->getValues(y1_values, vars_.y1_);
+  const int num_slots = instance_.num_vehicles();
+
+  for (auto j : instance_.items_for_transport())
+  {
+    for (int i = 0; i < num_slots; ++i)
+    {
+      auto index = vars_.y1_index(i, j);
+      if (double_equals(y1_values[index], 1.0))
+      {
+        curr_items[j] = 1;
+        break;
+      }
+    }
+  }
+
+  y1_values.end();
+}
+
+VehicleSlotsModel::VehicleSlotsModel(const Instance &inst, bool reformulate, bool add_symmetry_breaking, bool solve_relax) : Model(inst)
 {
   is_relaxed_ = solve_relax;
   reformulated_ = reformulate;
+  symmetry_breaking_ = add_symmetry_breaking;
 
-  const int num_vertices = inst.num_items();
+  const int num_vertices = instance_.num_items();
 
   env_ = new IloEnv();
   model_ = new IloModel(*env_);
@@ -1309,14 +1794,14 @@ VehicleSlotsModel::VehicleSlotsModel(Instance &inst, bool reformulate, bool add_
 
   cplex_->extract(*model_);
 
-  allocateVariables(inst, reformulate);
+  allocateVariables(reformulate);
 
   std::cout << vars_ << std::endl;
 
-  populateByRow(inst, reformulate, add_symmetry_breaking, export_model);
+  populateByRow(reformulate, add_symmetry_breaking);
 }
 
-void VehicleSlotsModel::fillSolution(const Instance &inst, Solution<double> &solution)
+void VehicleSlotsModel::fillSolution(Solution<double> &solution)
 {
   int num_items_loaded = 0;
   int num_unproductive_moves = 0;
@@ -1329,10 +1814,10 @@ void VehicleSlotsModel::fillSolution(const Instance &inst, Solution<double> &sol
   if (solution.is_feasible_)
   {
 
-    int num_vehicles = inst.num_vehicles();
+    int num_vehicles = instance_.num_vehicles();
     int num_slots = num_vehicles;
-    int num_items = inst.num_items();
-    const auto &successors_for_transport_per_item = inst.successors_for_transport_per_item();
+    int num_items = instance_.num_items();
+    const auto &successors_for_transport_per_item = instance_.successors_for_transport_per_item();
 
     IloNumArray y1_values(*env_), y2_values(*env_), U_values(*env_);
     cplex_->getValues(y1_values, vars_.y1_);
@@ -1342,7 +1827,7 @@ void VehicleSlotsModel::fillSolution(const Instance &inst, Solution<double> &sol
     // get values of x variables.
     for (int i = 0; i < num_slots; ++i)
     {
-      for (auto j : inst.items_for_transport())
+      for (auto j : instance_.items_for_transport())
       {
         auto value = y1_values[vars_.y1_index(i, j)];
         if (!double_equals(value, 0.0))
@@ -1386,7 +1871,7 @@ void VehicleSlotsModel::fillSolution(const Instance &inst, Solution<double> &sol
       // get values of X variables.
       for (int i = 0; i < num_slots; ++i)
       {
-        for (auto &[group, _] : inst.items_for_transport_per_group())
+        for (auto &[group, _] : instance_.items_for_transport_per_group())
         {
           auto value = Y_values[vars_.Y_index(i, group)];
           if (!double_equals(value, 0.0))
@@ -1404,16 +1889,16 @@ void VehicleSlotsModel::fillSolution(const Instance &inst, Solution<double> &sol
   }
 }
 
-void VehicleSlotsModel::populateByRow(const Instance &instance, bool reformulate, bool add_symmetry_breaking, bool export_model)
+void VehicleSlotsModel::populateByRow(bool reformulate, bool add_symmetry_breaking)
 {
   IloExpr obj(*env_);
-  const int num_vehicles = instance.num_vehicles();
+  const int num_vehicles = instance_.num_vehicles();
   const int num_slots = num_vehicles;
-  const auto &items = instance.items();
-  const int num_items = instance.num_items();
-  // const auto &successors_fixed_per_item = instance.successors_fixed_per_item();
-  const auto &successors_for_transport_per_item = instance.successors_for_transport_per_item();
-  const auto &fleet = instance.fleet();
+  const auto &items = instance_.items();
+  const int num_items = instance_.num_items();
+  // const auto &successors_fixed_per_item = instance_.successors_fixed_per_item();
+  const auto &successors_for_transport_per_item = instance_.successors_for_transport_per_item();
+  const auto &fleet = instance_.fleet();
   int M = 0;
 
   // compute M.
@@ -1447,7 +1932,7 @@ void VehicleSlotsModel::populateByRow(const Instance &instance, bool reformulate
   obj.end();
 
   // Restrictions (47).
-  for (auto &j : instance.items_for_transport())
+  for (auto &j : instance_.items_for_transport())
   {
     IloExpr exp(*env_);
     for (int i = 0; i < num_vehicles; ++i)
@@ -1462,7 +1947,7 @@ void VehicleSlotsModel::populateByRow(const Instance &instance, bool reformulate
     for (int i = 0; i < num_slots; ++i)
     {
       IloExpr exp(*env_);
-      for (auto &[group, items] : instance.items_for_transport_per_group())
+      for (auto &[group, items] : instance_.items_for_transport_per_group())
       {
         exp += vars_.Y(i, group);
         IloExpr sum_items(*env_);
@@ -1481,9 +1966,9 @@ void VehicleSlotsModel::populateByRow(const Instance &instance, bool reformulate
   else
   {
     // Restrictions (48).
-    for (auto &j : instance.items_for_transport())
+    for (auto &j : instance_.items_for_transport())
     {
-      for (auto &k : instance.items_for_transport())
+      for (auto &k : instance_.items_for_transport())
       {
         if ((j < k) && (items[j]->group() != items[k]->group()))
         {
@@ -1554,7 +2039,7 @@ void VehicleSlotsModel::populateByRow(const Instance &instance, bool reformulate
   for (int r = 0; r < num_slots; ++r)
   {
     IloExpr exp1(*env_);
-    for (auto &j : instance.items_for_transport())
+    for (auto &j : instance_.items_for_transport())
       exp1 += vars_.y1(r, j);
 
     IloExpr exp2(*env_);
@@ -1577,7 +2062,7 @@ void VehicleSlotsModel::populateByRow(const Instance &instance, bool reformulate
     for (int r = 0; r < num_slots - 1; ++r)
     {
       IloExpr exp1(*env_), exp2(*env_);
-      for (auto &j : instance.items_for_transport())
+      for (auto &j : instance_.items_for_transport())
       {
         exp1 += vars_.y1(r, j);
         exp2 += vars_.y1(r + 1, j);
@@ -1589,7 +2074,7 @@ void VehicleSlotsModel::populateByRow(const Instance &instance, bool reformulate
     }
   }
 
-  if (export_model)
+  // if (export_model)
   {
     // add name to variables.
     for (auto &[key, value] : vars_.y1_var_to_index_.index_to_var_map())
@@ -1622,13 +2107,13 @@ void VehicleSlotsModel::populateByRow(const Instance &instance, bool reformulate
         vars_.Y_[key].setName(strnum);
       }
     }
-    cplex_->exportModel("vehicle_slots_model.lp");
+    // cplex_->exportModel("vehicle_slots_model.lp");
   }
 }
 
-UserCut *VehicleSlotsModel::separateCuts(const Instance &instance, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts)
+UserCut *VehicleSlotsModel::separateCuts(bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts)
 {
   IloNumArray item_to_vehicle_or_slot_values(*env_);
   cplex_->getValues(vars_.y1_, item_to_vehicle_or_slot_values);
-  return GenerateCliqueConflictCuts(instance, vars_.y1_var_to_index_, vars_.y1_, item_to_vehicle_or_slot_values, root_cuts, sol, cuts);
+  return GenerateCliqueConflictCuts(instance_, vars_.y1_var_to_index_, vars_.y1_, item_to_vehicle_or_slot_values, root_cuts, sol, cuts);
 }

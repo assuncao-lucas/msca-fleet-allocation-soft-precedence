@@ -1,6 +1,7 @@
 
 #include "src/instance.h"
 #include "src/exact/formulations.h"
+#include "src/kernel_search/kernel_search.h"
 
 int main()
 {
@@ -47,34 +48,41 @@ int main()
 
 		std::cout << inst << std::endl;
 
-		bool reformulate = false;
+		bool reformulate = true;
 		bool add_symmetry_breaking = true;
-		bool solve_relax = true;
+		bool solve_relax = false;
 		bool find_root_cuts = true;
-		bool export_model = true;
 		int time_limit = 1000;
-		VehicleSequencingModel model(inst, reformulate, add_symmetry_breaking, solve_relax, export_model);
-		// ItemSequencingModel model(inst, reformulate, add_symmetry_breaking, solve_relax, export_model);
-		// VehicleSlotsModel model(inst, reformulate, add_symmetry_breaking, solve_relax, export_model);
+		// VehicleSequencingModel model(inst, reformulate, add_symmetry_breaking, solve_relax);
+		// ItemSequencingModel model(inst, reformulate, add_symmetry_breaking, solve_relax);
+		VehicleSlotsModel model(inst, reformulate, add_symmetry_breaking, solve_relax);
 
-		Solution<double> solution;
+		Solution<double>
+			solution;
 
 		std::list<UserCut *> *root_cuts = nullptr;
 		if ((find_root_cuts) && (!solve_relax))
 		{
 			// fill root_cuts by solving relaxed model with separation of cuts.
-			VehicleSequencingModel relaxed_model(inst, reformulate, add_symmetry_breaking, true, false);
-			// ItemSequencingModel relaxed_model(inst, reformulate, add_symmetry_breaking, true, false);
-			// VehicleSlotsModel relaxed_model(inst, reformulate, add_symmetry_breaking, true, false);
+			auto relaxed_model = model.getClone(true);
 			root_cuts = new std::list<UserCut *>();
-			relaxed_model.optimize(inst, -1.0, true, nullptr, root_cuts, solution);
+			relaxed_model->optimize(-1.0, true, nullptr, root_cuts, solution);
+			relaxed_model->exportModel("relaxed.lp");
+			delete relaxed_model;
+			relaxed_model = nullptr;
 		}
 
+		KernelSearch ks(inst);
+		ks.Run(model, root_cuts, 5, 100, 200, 0.1, false, true);
+
 		// solve the main problem (either relaxed or integer).
-		if (model.optimize(inst, time_limit, find_root_cuts, root_cuts, nullptr, solution))
-			model.fillSolution(inst, solution);
+		if (model.optimize(time_limit, find_root_cuts, root_cuts, nullptr, solution))
+			model.fillSolution(solution);
+
+		model.exportModel("original.lp");
 
 		std::cout << "cuts added root: " << solution.num_cuts_added_lp_[K_TYPE_CLIQUE_CONFLICT_CUT] << std::endl;
+		std::cout << "opt: " << model.getObjValue() << std::endl;
 
 		DeleteCuts(root_cuts);
 	}

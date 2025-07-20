@@ -94,6 +94,20 @@ public:
   IloNumVarArray U_;
   IloNumVarArray X_;
 
+  void fill_all_vars_array(IloNumVarArray &all_vars)
+  {
+    all_vars.add(x_);
+    all_vars.add(z_);
+    all_vars.add(w_);
+    all_vars.add(U_);
+    all_vars.add(X_);
+  }
+
+  int num_vars()
+  {
+    return x_.getSize() + z_.getSize() + w_.getSize() + U_.getSize() + X_.getSize();
+  }
+
   IloNumVar &x(int i, int j)
   {
     return x_[x_index(i, j)];
@@ -164,6 +178,19 @@ public:
   IloNumVarArray U_;
   IloNumVarArray X_;
 
+  void fill_all_vars_array(IloNumVarArray &all_vars)
+  {
+    all_vars.add(x_);
+    all_vars.add(u_);
+    all_vars.add(U_);
+    all_vars.add(X_);
+  }
+
+  int num_vars()
+  {
+    return x_.getSize() + u_.getSize() + U_.getSize() + X_.getSize();
+  }
+
   IloNumVar &x(int i, int j)
   {
     return x_[x_index(i, j)];
@@ -222,6 +249,19 @@ public:
   IloNumVarArray y2_;
   IloNumVarArray U_;
   IloNumVarArray Y_;
+
+  void fill_all_vars_array(IloNumVarArray &all_vars)
+  {
+    all_vars.add(y1_);
+    all_vars.add(y2_);
+    all_vars.add(U_);
+    all_vars.add(Y_);
+  }
+
+  int num_vars()
+  {
+    return y1_.getSize() + y2_.getSize() + U_.getSize() + Y_.getSize();
+  }
 
   IloNumVar &y1(int i, int j)
   {
@@ -314,38 +354,104 @@ void SetSolutionStatus(IloCplex &cplex, Solution<T> &solution, bool solve_relax)
 class Model // abstract class for the models.
 {
 public:
-  Model() = default;
-  ~Model();
-  virtual void fillSolution(const Instance &instance, Solution<double> &solution) = 0;
-  bool optimize(const Instance &instance, double total_time_limit, bool find_root_cuts, std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution);
+  Model(const Instance &instance);
+  virtual ~Model();
+  virtual void fillSolution(Solution<double> &solution) = 0;
+  bool optimize(double total_time_limit, bool find_root_cuts, std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution);
+  void set_multithreading(bool multithreading);
+  void set_emphasis_feasibility()
+  {
+    cplex_->setParam(IloCplex::Param::Emphasis::MIP, IloCplex::MIPEmphasisFeasibility);
+  }
+
+  void set_time_limit(double time_limit)
+  {
+    cplex_->setParam(IloCplex::Param::TimeLimit, time_limit);
+  }
+
+  void addMIPStart(const IloNumArray &curr_mip_start_vals)
+  {
+    cplex_->addMIPStart(all_vars_array_, curr_mip_start_vals, IloCplex::MIPStartSolveMIP);
+  }
+
+  IloNum getObjValue()
+  {
+    return cplex_->getObjValue();
+  }
+
+  void getSolutionValues(IloNumArray &values)
+  {
+    values.clear();
+    cplex_->getValues(values, all_vars_array_);
+  }
+
+  IloEnv &env()
+  {
+    return *env_;
+  }
+  IloCplex::CplexStatus status()
+  {
+    return cplex_->getCplexStatus();
+  }
+
+  void exportModel(const char *name) const
+  {
+    cplex_->exportModel(name);
+  }
+
+  virtual Model *getClone(bool relaxed) = 0;
+
+  virtual void getSolutionItems(boost::dynamic_bitset<> &curr_items) = 0;
+  virtual int num_vars() = 0;
+  virtual IloNumArray get_items_values() = 0;
+  virtual IloNumArray get_items_reduced_costs() = 0;
+  virtual void UpdateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active) = 0;
 
 protected:
-  virtual void allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars = false) = 0;
-  virtual void populateByRow(const Instance &instance, bool reformulate, bool symmetry_breaking, bool export_model) = 0;
-  virtual void addInitialCuts(std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution);
-  virtual void addCut(UserCut *curr_cut) = 0;
-  virtual bool findAndAddValidInqualities(const Instance &instance, Solution<double> &sol, std::list<UserCut *> *root_cuts);
-  virtual UserCut *separateCuts(const Instance &instance, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts) = 0;
+  virtual void allocateVariables(bool reformulate) = 0;
+  virtual void populateByRow(bool reformulate, bool symmetry_breaking) = 0;
+  virtual void addInitialCuts(std::list<UserCut *> *initial_cuts, Solution<double> &solution);
+  virtual void addCut(UserCut *curr_cut, std::optional<std::reference_wrapper<IloRangeArray>> root_cuts) = 0;
+  virtual bool findAndAddValidInqualities(Solution<double> &sol, std::list<UserCut *> *root_cuts);
+  virtual UserCut *separateCuts(bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts) = 0;
 
   IloEnv *env_ = nullptr;     // Cplex environment.
   IloCplex *cplex_ = nullptr; // Cplex solver.
   IloModel *model_ = nullptr; // Cplex model.
+  IloNumVarArray all_vars_array_;
   bool is_relaxed_ = false;
   bool reformulated_ = false;
+  bool symmetry_breaking_ = false;
+
+  const Instance &instance_;
 };
 
 class VehicleSequencingModel : public Model
 {
 public:
-  explicit VehicleSequencingModel(Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed, bool export_model);
-  ~VehicleSequencingModel() = default;
-  virtual void fillSolution(const Instance &instance, Solution<double> &solution);
+  explicit VehicleSequencingModel(const Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed);
+  virtual ~VehicleSequencingModel() = default;
+  virtual void fillSolution(Solution<double> &solution);
+  virtual int num_vars()
+  {
+    return vars_.num_vars();
+  }
+  virtual IloNumArray get_items_values();
+  virtual IloNumArray get_items_reduced_costs();
+
+  virtual Model *getClone(bool relaxed)
+  {
+    return new VehicleSequencingModel(instance_, reformulated_, symmetry_breaking_, relaxed);
+  }
+
+  void UpdateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active);
+  virtual void getSolutionItems(boost::dynamic_bitset<> &curr_items);
 
 private:
-  virtual void allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars = false);
-  virtual void populateByRow(const Instance &instance, bool reformulate, bool symmetry_breaking, bool export_model);
-  virtual void addCut(UserCut *curr_cut);
-  virtual UserCut *separateCuts(const Instance &instance, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts);
+  virtual void allocateVariables(bool reformulate);
+  virtual void populateByRow(bool reformulate, bool symmetry_breaking);
+  virtual void addCut(UserCut *curr_cut, std::optional<std::reference_wrapper<IloRangeArray>> root_cuts);
+  virtual UserCut *separateCuts(bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts);
 
   VehicleSequencingModelVariables vars_;
 };
@@ -353,15 +459,30 @@ private:
 class ItemSequencingModel : public Model
 {
 public:
-  explicit ItemSequencingModel(Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed, bool export_model);
-  ~ItemSequencingModel() = default;
-  virtual void fillSolution(const Instance &instance, Solution<double> &solution);
+  explicit ItemSequencingModel(const Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed);
+  virtual ~ItemSequencingModel() = default;
+  virtual void fillSolution(Solution<double> &solution);
+  virtual int num_vars()
+  {
+    return vars_.num_vars();
+  }
+
+  virtual IloNumArray get_items_values();
+  virtual IloNumArray get_items_reduced_costs();
+
+  virtual Model *getClone(bool relaxed)
+  {
+    return new ItemSequencingModel(instance_, reformulated_, symmetry_breaking_, relaxed);
+  }
+
+  void UpdateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active);
+  virtual void getSolutionItems(boost::dynamic_bitset<> &curr_items);
 
 private:
-  virtual void allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars = false);
-  virtual void populateByRow(const Instance &instance, bool reformulate, bool symmetry_breaking, bool export_model);
-  virtual void addCut(UserCut *curr_cut);
-  virtual UserCut *separateCuts(const Instance &instance, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts);
+  virtual void allocateVariables(bool reformulate);
+  virtual void populateByRow(bool reformulate, bool symmetry_breaking);
+  virtual void addCut(UserCut *curr_cut, std::optional<std::reference_wrapper<IloRangeArray>> root_cuts);
+  virtual UserCut *separateCuts(bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts);
 
   ItemSequencingModelVariables vars_;
 };
@@ -369,15 +490,30 @@ private:
 class VehicleSlotsModel : public Model
 {
 public:
-  explicit VehicleSlotsModel(Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed, bool export_model);
-  ~VehicleSlotsModel() = default;
-  virtual void fillSolution(const Instance &instance, Solution<double> &solution);
+  explicit VehicleSlotsModel(const Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed);
+  virtual ~VehicleSlotsModel() = default;
+  virtual void fillSolution(Solution<double> &solution);
+  virtual int num_vars()
+  {
+    return vars_.num_vars();
+  }
+
+  virtual IloNumArray get_items_values();
+  virtual IloNumArray get_items_reduced_costs();
+
+  virtual Model *getClone(bool relaxed)
+  {
+    return new VehicleSlotsModel(instance_, reformulated_, symmetry_breaking_, relaxed);
+  }
+
+  void UpdateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active);
+  virtual void getSolutionItems(boost::dynamic_bitset<> &curr_items);
 
 private:
-  virtual void allocateVariables(const Instance &instance, bool reformulate, bool disable_all_binary_vars = false);
-  virtual void populateByRow(const Instance &instance, bool reformulate, bool symmetry_breaking, bool export_model);
-  virtual void addCut(UserCut *curr_cut);
-  virtual UserCut *separateCuts(const Instance &instance, bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts);
+  virtual void allocateVariables(bool reformulate);
+  virtual void populateByRow(bool reformulate, bool symmetry_breaking);
+  virtual void addCut(UserCut *curr_cut, std::optional<std::reference_wrapper<IloRangeArray>> root_cuts);
+  virtual UserCut *separateCuts(bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts);
 
   VehicleSlotsModelVariables vars_;
 };
