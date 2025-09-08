@@ -178,6 +178,8 @@ public:
   IloNumVarArray U_;
   IloNumVarArray X_;
 
+  IloNumArray fill_var_values_from_solution(std::vector<std::vector<int>> fleet_allocation);
+
   void fill_all_vars_array(IloNumVarArray &all_vars)
   {
     all_vars.add(x_);
@@ -347,8 +349,8 @@ void SetSolutionStatus(IloCplex &cplex, Solution<T> &solution, bool solve_relax)
           solution.is_optimal_ = true;
       }
     }
+    solution.num_nodes_ += cplex.getNnodes();
   }
-  solution.num_nodes_ = cplex.getNnodes();
 }
 
 class Model // abstract class for the models.
@@ -356,7 +358,7 @@ class Model // abstract class for the models.
 public:
   Model(const Instance &instance);
   virtual ~Model();
-  virtual void fillSolution(Solution<double> &solution) = 0;
+  virtual void fillSolution(Solution<double> &solution, std::optional<IloNumArray> var_values_opt) = 0;
   bool optimize(double total_time_limit, bool find_root_cuts, std::list<UserCut *> *initial_cuts, std::list<UserCut *> *root_cuts, Solution<double> &solution);
   void set_multithreading(bool multithreading);
   void set_emphasis_feasibility()
@@ -401,19 +403,20 @@ public:
 
   virtual Model *getClone(bool relaxed) = 0;
 
+  virtual std::vector<int> fillVarValuesFromSolution(std::vector<std::pair<int, std::vector<int>>> fleet_allocation) = 0;
   virtual void getSolutionItems(boost::dynamic_bitset<> &curr_items) = 0;
   virtual int num_vars() = 0;
   virtual IloNumArray get_items_values() = 0;
   virtual IloNumArray get_items_reduced_costs() = 0;
-  virtual void UpdateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active) = 0;
+  virtual void updateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active) = 0;
 
 protected:
-  virtual void allocateVariables(bool reformulate) = 0;
-  virtual void populateByRow(bool reformulate, bool symmetry_breaking) = 0;
+  virtual void allocateVariables() = 0;
+  virtual void populateByRow(bool symmetry_breaking) = 0;
   virtual void addInitialCuts(std::list<UserCut *> *initial_cuts, Solution<double> &solution);
   virtual void addCut(UserCut *curr_cut, std::optional<std::reference_wrapper<IloRangeArray>> root_cuts) = 0;
-  virtual bool findAndAddValidInqualities(Solution<double> &sol, std::list<UserCut *> *root_cuts);
-  virtual UserCut *separateCuts(bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts) = 0;
+  virtual bool findAndAddValidInequalities(Solution<double> &sol, std::list<UserCut *> *root_cuts);
+  virtual UserCut *separateCuts(Solution<double> &sol, std::list<UserCut *> &cuts) = 0;
 
   IloEnv *env_ = nullptr;     // Cplex environment.
   IloCplex *cplex_ = nullptr; // Cplex solver.
@@ -431,7 +434,7 @@ class VehicleSequencingModel : public Model
 public:
   explicit VehicleSequencingModel(const Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed);
   virtual ~VehicleSequencingModel() = default;
-  virtual void fillSolution(Solution<double> &solution);
+  virtual void fillSolution(Solution<double> &solution, std::optional<IloNumArray> var_values_opt);
   virtual int num_vars()
   {
     return vars_.num_vars();
@@ -444,14 +447,15 @@ public:
     return new VehicleSequencingModel(instance_, reformulated_, symmetry_breaking_, relaxed);
   }
 
-  void UpdateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active);
+  std::vector<int> fillVarValuesFromSolution(std::vector<std::pair<int, std::vector<int>>> fleet_allocation);
+  void updateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active);
   virtual void getSolutionItems(boost::dynamic_bitset<> &curr_items);
 
 private:
-  virtual void allocateVariables(bool reformulate);
-  virtual void populateByRow(bool reformulate, bool symmetry_breaking);
+  virtual void allocateVariables();
+  virtual void populateByRow(bool symmetry_breaking);
   virtual void addCut(UserCut *curr_cut, std::optional<std::reference_wrapper<IloRangeArray>> root_cuts);
-  virtual UserCut *separateCuts(bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts);
+  virtual UserCut *separateCuts(Solution<double> &sol, std::list<UserCut *> &cuts);
 
   VehicleSequencingModelVariables vars_;
 };
@@ -461,7 +465,7 @@ class ItemSequencingModel : public Model
 public:
   explicit ItemSequencingModel(const Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed);
   virtual ~ItemSequencingModel() = default;
-  virtual void fillSolution(Solution<double> &solution);
+  virtual void fillSolution(Solution<double> &solution, std::optional<IloNumArray> var_values_opt);
   virtual int num_vars()
   {
     return vars_.num_vars();
@@ -475,14 +479,15 @@ public:
     return new ItemSequencingModel(instance_, reformulated_, symmetry_breaking_, relaxed);
   }
 
-  void UpdateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active);
+  std::vector<int> fillVarValuesFromSolution(std::vector<std::pair<int, std::vector<int>>> fleet_allocation);
+  void updateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active);
   virtual void getSolutionItems(boost::dynamic_bitset<> &curr_items);
 
 private:
-  virtual void allocateVariables(bool reformulate);
-  virtual void populateByRow(bool reformulate, bool symmetry_breaking);
+  virtual void allocateVariables();
+  virtual void populateByRow(bool symmetry_breaking);
   virtual void addCut(UserCut *curr_cut, std::optional<std::reference_wrapper<IloRangeArray>> root_cuts);
-  virtual UserCut *separateCuts(bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts);
+  virtual UserCut *separateCuts(Solution<double> &sol, std::list<UserCut *> &cuts);
 
   ItemSequencingModelVariables vars_;
 };
@@ -492,7 +497,7 @@ class VehicleSlotsModel : public Model
 public:
   explicit VehicleSlotsModel(const Instance &inst, bool reformulate, bool symmetry_breaking, bool relaxed);
   virtual ~VehicleSlotsModel() = default;
-  virtual void fillSolution(Solution<double> &solution);
+  virtual void fillSolution(Solution<double> &solution, std::optional<IloNumArray> var_values_opt);
   virtual int num_vars()
   {
     return vars_.num_vars();
@@ -506,14 +511,15 @@ public:
     return new VehicleSlotsModel(instance_, reformulated_, symmetry_breaking_, relaxed);
   }
 
-  void UpdateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active);
+  std::vector<int> fillVarValuesFromSolution(std::vector<std::pair<int, std::vector<int>>> fleet_allocation);
+  void updateModelVarBounds(boost::dynamic_bitset<> &items_entering, boost::dynamic_bitset<> &items_leaving, boost::dynamic_bitset<> &items_active);
   virtual void getSolutionItems(boost::dynamic_bitset<> &curr_items);
 
 private:
-  virtual void allocateVariables(bool reformulate);
-  virtual void populateByRow(bool reformulate, bool symmetry_breaking);
+  virtual void allocateVariables();
+  virtual void populateByRow(bool symmetry_breaking);
   virtual void addCut(UserCut *curr_cut, std::optional<std::reference_wrapper<IloRangeArray>> root_cuts);
-  virtual UserCut *separateCuts(bool root_cuts, Solution<double> &sol, std::list<UserCut *> &cuts);
+  virtual UserCut *separateCuts(Solution<double> &sol, std::list<UserCut *> &cuts);
 
   VehicleSlotsModelVariables vars_;
 };

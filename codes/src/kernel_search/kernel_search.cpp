@@ -1,9 +1,240 @@
 #include <cmath>
 #include <algorithm>
+#include <optional>
+#include <queue>
+#include <vector>
 #include "src/kernel_search/kernel_search.h"
 #include "src/graph_algorithms.h"
 #include "src/exact/formulations.h"
 #include "src/general.h"
+
+std::pair<std::vector<std::pair<int, std::vector<int>>>, std::unordered_set<int>> KernelSearch::findInitialSolution(const Instance &instance)
+{
+    // Custom comparator for max-heap (non-ascending by value)
+    struct MaxCompare
+    {
+        bool operator()(const std::pair<int, int> &a, const std::pair<int, int> &b) const
+        {
+            return a.second < b.second; // bigger value = higher priority
+        }
+    };
+
+    struct MinCompare
+    {
+        bool operator()(const std::pair<int, int> &a, const std::pair<int, int> &b) const
+        {
+            return a.second > b.second; // bigger value = higher priority
+        }
+    };
+
+    class MaxTracker
+    {
+    private:
+        std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>, MaxCompare> pq;
+
+    public:
+        void insert(int index, int value)
+        {
+            pq.push({index, value});
+        }
+
+        std::pair<int, int> top() const
+        {
+            return pq.top();
+        }
+
+        // Update the current max (remove + reinsert with new value)
+        void updateTop(int newValue)
+        {
+            if (pq.empty())
+                return;
+            std::pair<int, int> p = pq.top();
+            pq.pop();
+            pq.push({p.first, newValue});
+        }
+
+        void removeTop()
+        {
+            if (!pq.empty())
+                pq.pop();
+        }
+
+        bool empty() const
+        {
+            return pq.empty();
+        }
+    };
+
+    class MinTracker
+    {
+    private:
+        std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>, MinCompare> pq;
+
+    public:
+        void insert(int index, int value)
+        {
+            pq.push({index, value});
+        }
+
+        std::pair<int, int> top() const
+        {
+            return pq.top();
+        }
+
+        // Update the current max (remove + reinsert with new value)
+        void updateTop(int newValue)
+        {
+            if (pq.empty())
+                return;
+            std::pair<int, int> p = pq.top();
+            pq.pop();
+            pq.push({p.first, newValue});
+        }
+
+        void removeTop()
+        {
+            if (!pq.empty())
+                pq.pop();
+        }
+
+        bool empty() const
+        {
+            return pq.empty();
+        }
+    };
+
+    MaxTracker max_cardinality_group_heap;
+    MaxTracker max_capacity_vehicle_heap;
+
+    const auto items_for_transport_per_group = instance.items_for_transport_per_group();
+    const auto precedence_matrix = instance.precedence_matrix();
+    const int num_items = instance.num_items();
+    std::unordered_map<int, std::list<int>> items_per_group;
+    const auto fleet = instance.fleet();
+    const int num_vehicles = instance.num_vehicles();
+
+    std::unordered_map<int, MinTracker> ordered_items_per_group;         // order in terms of number of blocking items.
+    std::unordered_map<int, std::pair<int, int>> allocation_per_vehicle; // vehicle -> {group, quantity of items}
+
+    for (auto [group, items] : items_for_transport_per_group)
+    {
+        max_cardinality_group_heap.insert(group, items.size());
+        items_per_group[group] = std::list<int>(items.begin(), items.end());
+
+        MinTracker ordered_items_of_group;
+        for (auto item : items)
+        {
+            int num_precedents = 0;
+            for (int i = 0; i < num_items; ++i)
+                if (precedence_matrix[i][item])
+                    ++num_precedents;
+
+            ordered_items_of_group.insert(item, num_precedents);
+        }
+        ordered_items_per_group[group] = ordered_items_of_group;
+    }
+
+    for (int i = 0; i < num_vehicles; ++i)
+    {
+        auto vehicle = fleet[i];
+        max_capacity_vehicle_heap.insert(i, vehicle->capacity());
+    }
+
+    while (!max_capacity_vehicle_heap.empty() && !max_cardinality_group_heap.empty())
+    {
+        auto max_cap_vehicle_index = max_capacity_vehicle_heap.top().first;
+        auto max_cap_vehicle = max_capacity_vehicle_heap.top().second;
+        max_capacity_vehicle_heap.removeTop();
+        auto max_cardinality_group_index = max_cardinality_group_heap.top().first;
+        auto max_cardinality_group = max_cardinality_group_heap.top().second;
+        auto num_items_allocated = std::min(max_cap_vehicle, max_cardinality_group);
+
+        allocation_per_vehicle[max_cap_vehicle_index] = {max_cardinality_group_index,
+                                                         num_items_allocated};
+
+        (num_items_allocated < max_cardinality_group) ? max_cardinality_group_heap.updateTop(max_cardinality_group - num_items_allocated) : max_cardinality_group_heap.removeTop();
+    }
+
+    bool optimize_within_vehicle = true;
+    bool optimize_vehicle_ordering = true;
+
+    std::unordered_set<int> all_items_selected;
+    std::vector<int> vehicle_where_item_was_allocated(num_items, -1);
+    std::vector<std::pair<int, std::vector<int>>> vehicles_allocation;
+    std::unordered_map<int, std::vector<int>> vehicles_allocation_naive;
+
+    for (const auto &[vehicle, group_allocation] : allocation_per_vehicle)
+    {
+        std::vector<int> items_for_vehicle;
+        // std::cout << "vehicle " << vehicle << ": " << group_allocation.second << " items of group " << group_allocation.first << std::endl;
+        auto group = group_allocation.first;
+        auto quantity_to_allocate = group_allocation.second;
+        auto &items_group = items_per_group[group];
+        auto &ordered_items_group = ordered_items_per_group[group];
+        for (int item_iter = 0; item_iter < quantity_to_allocate; ++item_iter)
+        {
+            int curr_item = -1;
+            if (optimize_within_vehicle)
+            {
+                curr_item = ordered_items_group.top().first;
+                ordered_items_group.removeTop();
+            }
+            else
+            {
+                curr_item = items_group.back();
+                items_group.pop_back();
+            }
+            all_items_selected.insert(curr_item);
+            vehicle_where_item_was_allocated[curr_item] = vehicle;
+            items_for_vehicle.push_back(curr_item);
+        }
+        if (optimize_vehicle_ordering)
+            vehicles_allocation_naive[vehicle] = items_for_vehicle;
+        else
+            vehicles_allocation.push_back({vehicle, items_for_vehicle});
+
+        // std::cout << "vehicle " << vehicle << std::endl;
+        // for (auto item : items_for_vehicle)
+        //     std::cout << " " << item;
+        // std::cout << std::endl;
+    }
+
+    MinTracker num_allocated_precedents_per_vehicle;
+    for (const auto &[vehicle, vehicle_items] : vehicles_allocation_naive)
+    {
+        std::unordered_set<int> removed_precedents_from_items_in_vehicle; // keep track of precedents already counted, as to avoid double counting for two or more items of a same vehicle.
+        int num_allocated_precedents = 0;
+        for (const auto item : vehicle_items)
+        {
+            for (int i = 0; i < num_items; ++i)
+            {
+                // only add if precedent item belongs to the solution and was allocated to a different vehicle.
+                if ((vehicle_where_item_was_allocated[i] != -1) && (vehicle_where_item_was_allocated[i] != vehicle) && (precedence_matrix[i][item]) && removed_precedents_from_items_in_vehicle.find(i) == removed_precedents_from_items_in_vehicle.end())
+                {
+                    removed_precedents_from_items_in_vehicle.insert(i);
+                    ++num_allocated_precedents;
+                }
+            }
+        }
+        num_allocated_precedents_per_vehicle.insert(vehicle, num_allocated_precedents);
+        // std::cout << "naive" << std::endl
+        //           << "vehicle " << vehicle << "| " << num_allocated_precedents << " allocated precedents" << std::endl;
+    }
+
+    while (!num_allocated_precedents_per_vehicle.empty())
+    {
+        int vehicle = num_allocated_precedents_per_vehicle.top().first;
+        num_allocated_precedents_per_vehicle.removeTop();
+        vehicles_allocation.push_back({vehicle, vehicles_allocation_naive[vehicle]});
+
+        // std::cout << "optimized" << std::endl
+        //           << "vehicle " << vehicle << std::endl;
+    }
+    // getchar();
+    // getchar();
+
+    return {vehicles_allocation, all_items_selected};
+}
 
 KernelSearch::KernelSearch(Instance &instance) : instance_(instance)
 {
@@ -115,7 +346,7 @@ void KernelSearch::BuildHeuristicSolution(KSHeuristicSolution *solution)
     // //     std::cout << curr_best_solution_value_ << " != " << solution->profits_sum_ << std::endl;
 }
 
-void KernelSearch::BuildKernelAndBuckets(Model &MIPformulation, std::list<UserCut *> *initial_cuts, KSHeuristicSolution *solution, int ks_max_size_bucket, bool multithreading)
+void KernelSearch::BuildKernelAndBuckets(Model &MIPformulation, std::list<UserCut *> *initial_cuts, KSHeuristicSolution *solution, std::optional<std::unordered_set<int>> initial_kernel_items, int ks_max_size_bucket, bool multithreading)
 {
     auto formulation = MIPformulation.getClone(true);
     formulation->set_multithreading(multithreading);
@@ -157,11 +388,11 @@ void KernelSearch::BuildKernelAndBuckets(Model &MIPformulation, std::list<UserCu
     for (int i : instance_.items_for_transport())
         item_value_red_cost.push_back(ItemValueReducedCost{.item = i, .value = items_values[i], .reduced_cost = items_reduced_costs[i]});
 
-    std::cout << "Before sorting" << std::endl;
-    for (auto &item : item_value_red_cost)
-    {
-        std::cout << item.item << " " << item.value << " " << item.reduced_cost << std::endl;
-    }
+    // std::cout << "Before sorting" << std::endl;
+    // for (auto &item : item_value_red_cost)
+    // {
+    //     std::cout << item.item << " " << item.value << " " << item.reduced_cost << std::endl;
+    // }
 
     auto compare = [/*num_mandatory*/](const ItemValueReducedCost &a, const ItemValueReducedCost &b)
     {
@@ -176,34 +407,68 @@ void KernelSearch::BuildKernelAndBuckets(Model &MIPformulation, std::list<UserCu
     auto start = item_value_red_cost.begin();
     std::sort(start, item_value_red_cost.end(), compare);
 
-    std::cout << "After sorting" << std::endl;
-    for (auto &item : item_value_red_cost)
+    // std::cout << "After sorting" << std::endl;
+    // for (auto &item : item_value_red_cost)
+    // {
+    //     std::cout << item.item << " " << item.value << " " << item.reduced_cost << std::endl;
+    // }
+
+    boost::dynamic_bitset<> already_added_items(num_items, 0);
+    int size_kernel = 0, iter_item_counter = 0;
+    // add to kernal all initial items given.
+    if (initial_kernel_items.has_value() && !(initial_kernel_items->empty()))
     {
-        std::cout << item.item << " " << item.value << " " << item.reduced_cost << std::endl;
+        // std::cout << "size kernal: " << initial_kernel_items->size() << std::endl;
+        // getchar();
+        // getchar();
+        size_kernel = initial_kernel_items->size();
+        for (auto item : *initial_kernel_items)
+        {
+            curr_kernel_bitset_[item] = 1;
+            already_added_items[item] = 1;
+            // std::cout << item << std::endl;
+        }
+    }
+    else
+    {
+        size_kernel = std::min(num_items_for_transport, ks_max_size_bucket);
+
+        for (int i = 0; i < size_kernel; ++i)
+        {
+            auto item = item_value_red_cost[i].item;
+            curr_kernel_bitset_[item] = 1;
+            already_added_items[item] = 1;
+        }
+        iter_item_counter = size_kernel;
     }
 
-    int size_kernel = std::min(num_items_for_transport, ks_max_size_bucket);
-
-    for (int i = 0; i < size_kernel; ++i)
-        curr_kernel_bitset_[item_value_red_cost[i].item] = 1;
-
+    // std::cout << "num_items_for_transport - size_kernel = " << num_items_for_transport << " - " << size_kernel << std::endl;
     int num_buckets = std::ceil(1.0 * ((num_items_for_transport - size_kernel)) / ks_max_size_bucket);
+    // std::cout << num_buckets << std::endl;
     buckets_bitsets_ = std::vector<boost::dynamic_bitset<>>(num_buckets, boost::dynamic_bitset<>(num_items, 0));
 
-    int items_added = size_kernel; // since already added some vertices to the kernel.
+    // int items_added = size_kernel; // since already added some vertices to the kernel.
     for (int curr_bucket = 0; curr_bucket < num_buckets; ++curr_bucket)
     {
         // std::cout << "bucket " << curr_bucket << std::endl;
         int num_elements_in_bucket = std::min(ks_max_size_bucket, num_items_for_transport - size_kernel - curr_bucket * ks_max_size_bucket);
         // std::cout << "num elements in bucket " << num_elements_in_bucket << std::endl;
-        for (int curr_element_in_bucket = 0; curr_element_in_bucket < num_elements_in_bucket; ++curr_element_in_bucket)
+        for (int curr_element_in_bucket = 0; curr_element_in_bucket < num_elements_in_bucket;)
         {
-            buckets_bitsets_[curr_bucket][item_value_red_cost[items_added].item] = 1;
-            ++items_added;
+            // std::cout << num_items_for_transport << " > " << iter_item_counter << std::endl;
+            auto item = item_value_red_cost[iter_item_counter].item;
+            // std::cout << "opa" << std::endl;
+            if (already_added_items[item] == 0)
+            {
+                buckets_bitsets_[curr_bucket][item] = 1;
+                already_added_items[item] = 1;
+                ++curr_element_in_bucket;
+            }
+            ++iter_item_counter;
         }
     }
 
-    assert(items_added == num_items_for_transport);
+    assert(iter_item_counter == num_items_for_transport);
 
     items_values.end();
     items_reduced_costs.end();
@@ -221,19 +486,29 @@ KSHeuristicSolution *KernelSearch::Run(Model &formulation, std::list<UserCut *> 
 
     std::cout << std::setprecision(2) << std::fixed;
 
-    KSHeuristicSolution *solution = new KSHeuristicSolution(0, 0, 0);
+    KSHeuristicSolution *solution = new KSHeuristicSolution();
 
     // build Kernel by solving LP of given problem.
-    BuildKernelAndBuckets(formulation, initial_cuts, solution, ks_max_size_bucket, multithreading);
+    auto [initial_sol, all_items_solution] = findInitialSolution(instance_);
+    auto initial_sol_values = formulation.fillVarValuesFromSolution(initial_sol);
+    found_feasible_solution = true;
+    // getchar();
+    // getchar();
+    BuildKernelAndBuckets(formulation, initial_cuts, solution, all_items_solution, ks_max_size_bucket, multithreading);
 
     solution->time_spent_building_kernel_buckets_ = timer->CurrentElapsedTime(ti);
     if (!solution->is_infeasible_)
     {
         PrintKernelAndBuckets();
+        // getchar();
+        // getchar();
 
         // Create the MILP model.
         auto MIPModel = formulation.getClone(false);
-        curr_mip_start_vals_ = IloNumArray(MIPModel->env());
+
+        curr_mip_start_vals_ = IloNumArray(MIPModel->env(), formulation.num_vars());
+        for (int i = 0; i < curr_mip_start_vals_.getSize(); ++i)
+            curr_mip_start_vals_[i] = initial_sol_values[i];
 
         MIPModel->set_multithreading(multithreading);
 
@@ -246,7 +521,7 @@ KSHeuristicSolution *KernelSearch::Run(Model &formulation, std::list<UserCut *> 
         for (auto item : instance_.items_for_transport())
             all_items_for_transport_bitset[item] = 1;
 
-        MIPModel->UpdateModelVarBounds(null_bitset, all_items_for_transport_bitset, null_bitset);
+        MIPModel->updateModelVarBounds(null_bitset, all_items_for_transport_bitset, null_bitset);
 
         double curr_time_limit_iteration = ks_max_time_limit;
 
@@ -281,7 +556,7 @@ KSHeuristicSolution *KernelSearch::Run(Model &formulation, std::list<UserCut *> 
             // cplex_.exportModel("model_before.lp");
             //  Enable in the model the variables that are active in the Kernel.
 
-            MIPModel->UpdateModelVarBounds(curr_items_entering_kernel, curr_items_leaving_reference_kernel, curr_reference_kernel);
+            MIPModel->updateModelVarBounds(curr_items_entering_kernel, curr_items_leaving_reference_kernel, curr_reference_kernel);
 
             // cplex_.exportModel("model_updated.lp");
             // getchar();
@@ -292,7 +567,7 @@ KSHeuristicSolution *KernelSearch::Run(Model &formulation, std::list<UserCut *> 
             {
                 MIPModel->addMIPStart(curr_mip_start_vals_);
 
-                // std::cout << "added warm start" << std::endl;
+                std::cout << "added warm start" << std::endl;
             }
 
             bool found_better_solution = false;
@@ -350,15 +625,20 @@ KSHeuristicSolution *KernelSearch::Run(Model &formulation, std::list<UserCut *> 
             curr_time_limit_iteration = std::max(curr_time_limit_iteration * ks_decay_factor, 1.0 * ks_min_time_limit);
         }
 
+        if (found_feasible_solution)
+        {
+            solution->is_feasible_ = solution->found_x_integer_ = true;
+            Solution<double> best_solution;
+
+            // compute number of items loaded and unproductive moves of the solution found.
+            MIPModel->fillSolution(best_solution, curr_mip_start_vals_);
+            solution->num_items_loaded_ = best_solution.num_items_loaded_;
+            solution->num_unproductive_moves_ = best_solution.num_unproductive_moves_;
+        }
+
         curr_mip_start_vals_.end();
         delete MIPModel;
         MIPModel = nullptr;
-    }
-
-    if (found_feasible_solution)
-    {
-        solution->is_feasible_ = solution->found_x_integer_ = true;
-        BuildHeuristicSolution(solution);
     }
 
     // std::cout << "Best solution found: " << curr_best_solution_value_ << " " << curr_int_y_ << std::endl;

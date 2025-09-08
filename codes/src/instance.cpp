@@ -5,72 +5,72 @@
 #include "src/instance.h"
 #include "src/general.h"
 
-void Instance::FillInstanceFromFile(std::string dir_path, std::string file_name, double service_time_deviation)
+void Instance::FillInstanceFromFile(std::string dir_path, std::string file_name)
 {
-    // std::string curr_file = dir_path;
-    // curr_file.append(file_name);
-    // Graph *graph = nullptr;
+    std::string curr_file = dir_path;
+    curr_file += file_name;
 
-    // // std::cout << dir_path << " " << file_name << std::endl;
+    // std::cout << dir_path << " " << file_name << std::endl;
 
-    // std::fstream file;
-    // file.open(curr_file.c_str(), std::fstream::in);
-    // if (!file.is_open())
-    // {
-    //     std::cout << "Could not open file" << std::endl;
-    //     throw 1;
-    //     return;
-    // }
+    std::fstream file;
+    file.open(curr_file.c_str(), std::fstream::in);
+    if (!file.is_open())
+    {
+        std::cout << "Could not open file" << std::endl;
+        throw 1;
+        return;
+    }
 
-    // int num_vertices = 0, mandatory_iter = 0;
+    int num_stacks = 0, num_items = 0, group = -1, num_items_in_stack = 0, num_vehicles = 0, capacity = 0, num_groups = 0;
+    int min_priority = std::numeric_limits<int>::max(), max_priority = -1;
 
-    // file >> num_vertices >> num_mandatory_;
+    file >> num_stacks >> num_vehicles >> num_items >> num_groups;
 
-    // // std::cout << num_vertices << " " << num_mandatory << std::endl;
+    std::vector<std::shared_ptr<Item>> items;
+    std::vector<std::shared_ptr<Vehicle>> fleet;
+    Matrix<int> precedence_matrix(num_items, num_items, 0);
 
-    // for (int i = 0; i < num_mandatory_; ++i)
-    // {
-    //     file >> mandatory_iter;
-    //     mandatory_list_.push_back(mandatory_iter);
-    // }
+    for (int vehicle = 0; vehicle < num_vehicles; ++vehicle)
+    {
+        file >> capacity;
+        fleet.push_back(std::make_shared<Vehicle>(capacity));
+    }
 
-    // std::vector<std::pair<double, double>> coordinates(num_vertices);
-    // Graph::VertexInfo *vertices_info = new Graph::VertexInfo[num_vertices];
+    int item_counter = 0;
+    for (int i = 0; i < num_stacks; ++i)
+    {
+        file >> num_items_in_stack;
+        for (int j = 0; j < num_items_in_stack; ++j)
+        {
+            file >> group;
+            // make the last group as fixed (not available for transport).
+            items.push_back(std::make_shared<Item>(group, group == num_groups - 1 ? false : true));
 
-    // // fill Vertices info.
-    // double garbage = 0.0;
-    // for (int i = 0; i < num_vertices; ++i)
-    // {
-    //     file >> vertices_info[i].coordinates_.first >> vertices_info[i].coordinates_.second >> vertices_info[i].profit_ >> vertices_info[i].decay_ratio_ >> vertices_info[i].nominal_service_time_ >> garbage;
-    //     vertices_info[i].dev_service_time_ = round_decimals(vertices_info[i].nominal_service_time_ * service_time_deviation, 2);
-    // }
-    // assert(vertices_info[0].profit_ == 0);
-    // assert(double_equals(vertices_info[0].decay_ratio_, 0.0));
-    // assert(double_equals(vertices_info[0].nominal_service_time_, 0.0));
-    // assert(double_equals(vertices_info[0].dev_service_time_, 0.0));
+            if (j < num_items_in_stack - 1)
+                precedence_matrix[item_counter + 1][item_counter] = 1;
+            ++item_counter;
+        }
+    }
 
-    // // read route time limit.
-    // file >> limit_;
+    file.close();
 
-    // file.close();
-
-    // graph_ = new Graph(num_vertices, vertices_info);
-
-    // for (int i = 0; i < num_vertices; ++i)
-    //     for (int j = i + 1; j < num_vertices; ++j)
-    //         graph_->AddEdge(i, j, round_decimals(euclidian_distance(vertices_info[i].coordinates_, vertices_info[j].coordinates_), 2));
+    set_items(items);
+    set_precedence_matrix(precedence_matrix);
+    set_fleet(fleet);
+    num_stacks_ = num_stacks;
 }
 
 Instance::Instance(std::string dir_path, std::string file_name)
 {
-    // FillInstanceFromFile(dir_path, file_name, service_time_deviation);
+    FillInstanceFromFile(dir_path, file_name);
 }
 
-Instance::Instance(std::vector<std::shared_ptr<Item>> items, Matrix<int> precedence_matrix, std::vector<std::shared_ptr<Vehicle>> fleet)
+Instance::Instance(std::vector<std::shared_ptr<Item>> items, Matrix<int> precedence_matrix, std::vector<std::shared_ptr<Vehicle>> fleet, int num_stacks)
 {
     set_items(items);
     set_precedence_matrix(precedence_matrix);
     set_fleet(fleet);
+    num_stacks_ = num_stacks;
 }
 
 std::ostream &
@@ -132,50 +132,18 @@ operator<<(std::ostream &out, const Instance &instance)
         out << std::endl;
     }
 
+    out << "Predecessors for transport:" << std::endl;
+
+    for (int i = 0; i < items.size(); ++i)
+    {
+        out << i << ":";
+        for (auto &predecessor : instance.predecessors_for_transport_per_item()[i])
+            out << " " << predecessor;
+
+        out << std::endl;
+    }
+
     return out;
-}
-
-void Instance::WriteToFile(std::string folder, std::string curr_file)
-{
-    // std::fstream output;
-
-    // Graph *graph = graph_;
-    // int num_vertices = graph->num_vertices();
-    // double limit = limit_;
-    // const Graph::VertexInfo *vertices_info = graph->vertices_info();
-
-    // std::string file_path = folder + curr_file;
-    // output.open(file_path.c_str(), std::fstream::out);
-
-    // // std::cout << folder << " " << curr_file << std::endl;
-
-    // if (!output.is_open())
-    // {
-    //     std::cout << "Could not open file" << std::endl;
-    //     throw 1;
-    //     return;
-    // }
-
-    // output << num_vertices << "\t" << num_mandatory_ << std::endl;
-
-    // std::list<int>::iterator last_element = mandatory_list_.end();
-    // --last_element;
-    // for (std::list<int>::iterator it = mandatory_list_.begin(); it != mandatory_list_.end(); ++it)
-    //     it != last_element ? output << map_reordered_vertices_to_original_positions_[*it] << "\t" : output << map_reordered_vertices_to_original_positions_[*it] << std::endl;
-
-    // // output << std::setprecision(2) << std::fixed;
-
-    // for (int i = 0; i < num_vertices; ++i)
-    //     output
-    //         << vertices_info[i].coordinates_.first << "\t"
-    //         << vertices_info[i].coordinates_.second << "\t"
-    //         << vertices_info[i].profit_ << "\t"
-    //         << vertices_info[i].decay_ratio_ << "\t"
-    //         << vertices_info[i].nominal_service_time_ << "\t"
-    //         << vertices_info[i].nominal_service_time_ << std::endl;
-
-    // output << limit_;
-    // output.close();
 }
 
 bool Instance::PropagatePrecedenceIter(std::stack<std::pair<int, bool>> &main_stack, std::vector<bool> &visited, std::vector<bool> &in_stack)
@@ -272,6 +240,7 @@ void Instance::set_items(std::vector<std::shared_ptr<Item>> items)
             items_fixed_.push_back(i);
     }
     successors_for_transport_per_item_.resize(items.size());
+    predecessors_for_transport_per_item_.resize(items.size());
     successors_fixed_per_item_.resize(items.size());
 }
 
@@ -285,9 +254,27 @@ void Instance::set_precedence_matrix(Matrix<int> &precedence_matrix)
         const auto columns = precedence_matrix.columns();
 
         for (int i = 0; i < lines; ++i)
+        {
             for (int j = 0; j < columns; ++j)
+            {
                 if (precedence_matrix_[i][j])
-                    items_[j]->available_for_transport() ? successors_for_transport_per_item_[i].push_back(j) : successors_fixed_per_item_[i].push_back(j);
+                {
+                    if (items_[j]->available_for_transport())
+                    {
+                        successors_for_transport_per_item_[i].push_back(j);
+                    }
+                    else
+                    {
+                        successors_fixed_per_item_[i].push_back(j);
+                    }
+
+                    if (items_[i]->available_for_transport())
+                    {
+                        predecessors_for_transport_per_item_[j].push_back(i);
+                    }
+                }
+            }
+        }
     }
     else
         throw "Invalid instance - cycle detected";

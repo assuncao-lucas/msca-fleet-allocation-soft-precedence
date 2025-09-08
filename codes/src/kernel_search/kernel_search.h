@@ -27,8 +27,7 @@ private:
 
     const Instance &instance_;
 
-    void BuildKernelAndBuckets(Model &formulation, std::list<UserCut *> *initial_cuts, KSHeuristicSolution *solution, int ks_max_size_bucket, bool multithreading);
-    void RetrieveSolutionArcVertexValues();
+    void BuildKernelAndBuckets(Model &formulation, std::list<UserCut *> *initial_cuts, KSHeuristicSolution *solution, std::optional<std::unordered_set<int>> initial_kernel_items, int ks_max_size_bucket, bool multithreading);
     void BuildHeuristicSolution(KSHeuristicSolution *);
     void PrintKernelAndBuckets();
     void UpdateModelVarBounds(boost::dynamic_bitset<> &vars_entering_kernel, boost::dynamic_bitset<> &vars_leaving_kernel, boost::dynamic_bitset<> &curr_reference_kernel);
@@ -37,4 +36,6 @@ private:
     std::vector<boost::dynamic_bitset<>> buckets_bitsets_;
 
     bool found_feasible_solution = false;
+
+    static std::pair<std::vector<std::pair<int, std::vector<int>>>, std::unordered_set<int>> findInitialSolution(const Instance &instance);
 };
