@@ -334,6 +334,7 @@ void SetSolutionStatus(IloCplex &cplex, Solution<T> &solution, bool solve_relax)
       solution.is_feasible_ = false;
     else
     {
+      solution.is_feasible_ = true;
       double cost = cplex.getObjValue();
       if ((cplex.getCplexStatus() == IloCplex::Optimal) || (cplex.getCplexStatus() == IloCplex::OptimalTol))
       {
@@ -373,6 +374,13 @@ public:
 
   void addMIPStart(const IloNumArray &curr_mip_start_vals)
   {
+    // for (int i = 0; i < num_vars(); ++i)
+    // {
+    //   model_->add(all_vars_array_[i] == curr_mip_start_vals[i]);
+    //   if (double_greater(curr_mip_start_vals[i], 0.0))
+    //     std::cout << all_vars_array_[i].getName() << " " << curr_mip_start_vals[i] << std::endl;
+    // }
+    // cplex_->exportModel("eita.lp");
     cplex_->addMIPStart(all_vars_array_, curr_mip_start_vals, IloCplex::MIPStartSolveMIP);
   }
 
@@ -401,6 +409,11 @@ public:
     cplex_->exportModel(name);
   }
 
+  double M() const
+  {
+    return this->M_;
+  }
+
   virtual Model *getClone(bool relaxed) = 0;
 
   virtual std::vector<int> fillVarValuesFromSolution(std::vector<std::pair<int, std::vector<int>>> fleet_allocation) = 0;
@@ -425,6 +438,7 @@ protected:
   bool is_relaxed_ = false;
   bool reformulated_ = false;
   bool symmetry_breaking_ = false;
+  double M_ = -1;
 
   const Instance &instance_;
 };

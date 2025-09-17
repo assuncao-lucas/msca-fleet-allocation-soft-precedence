@@ -68,6 +68,7 @@ private:
 
 	std::vector<std::shared_ptr<Vehicle>> fleet_;
 	int num_stacks_ = 0;
+	int num_groups_ = 0;
 
 	bool PropagatePrecedence(); // guarantees transitivity of precedence. if a -> b and b -> c, then a -> c.
 	bool PropagatePrecedenceIter(std::stack<std::pair<int, bool>> &main_stack, std::vector<bool> &visited, std::vector<bool> &in_stack);
@@ -86,6 +87,11 @@ public:
 	const int num_stacks() const
 	{
 		return num_stacks_;
+	}
+
+	const int num_groups() const
+	{
+		return num_groups_;
 	}
 
 	const std::vector<std::shared_ptr<Item>> &items() const

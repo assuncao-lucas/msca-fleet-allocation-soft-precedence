@@ -14,7 +14,7 @@ public:
     explicit KernelSearch(Instance &instance);
     virtual ~KernelSearch();
 
-    KSHeuristicSolution *Run(Model &formulation, std::list<UserCut *> *initial_cuts, int ks_max_size_bucket, int ks_min_time_limit, int ks_max_time_limit, double ks_decay_factor, bool feasibility_emphasis, bool multithreading);
+    KSHeuristicSolution *Run(Model &formulation, std::list<UserCut *> *initial_cuts, int ks_max_size_bucket, int ks_min_time_limit, int ks_max_time_limit, double ks_decay_factor, bool cluster_buckets_by_item_group, bool multithreading, double time_limit);
 
 private:
     IloNumArray curr_x_values_;
@@ -27,8 +27,7 @@ private:
 
     const Instance &instance_;
 
-    void BuildKernelAndBuckets(Model &formulation, std::list<UserCut *> *initial_cuts, KSHeuristicSolution *solution, std::optional<std::unordered_set<int>> initial_kernel_items, int ks_max_size_bucket, bool multithreading);
-    void BuildHeuristicSolution(KSHeuristicSolution *);
+    void BuildKernelAndBuckets(Model &formulation, std::list<UserCut *> *initial_cuts, KSHeuristicSolution *solution, std::optional<std::unordered_set<int>> initial_kernel_items, int ks_max_size_bucket, bool cluster_buckets_by_item_group, bool multithreading, double time_limit);
     void PrintKernelAndBuckets();
     void UpdateModelVarBounds(boost::dynamic_bitset<> &vars_entering_kernel, boost::dynamic_bitset<> &vars_leaving_kernel, boost::dynamic_bitset<> &curr_reference_kernel);
 

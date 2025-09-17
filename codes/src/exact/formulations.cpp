@@ -115,7 +115,7 @@ bool Model::optimize(double total_time_limit, bool find_root_cuts, std::list<Use
   cplex_->setParam(IloCplex::Param::WorkMem, 100000);
   std::cout << "limit of memory 100000MB" << std::endl;
   cplex_->setParam(IloCplex::IloCplex::Param::MIP::Strategy::File, 3);
-  // cplex_->setOut(env_->getNullStream());
+  cplex_->setOut(env_->getNullStream());
 
   addInitialCuts(initial_cuts, solution);
 
@@ -574,6 +574,7 @@ void VehicleSequencingModel::populateByRow(bool symmetry_breaking)
     if (!successors_for_transport_per_item[j].empty())
       ++M;
 
+  this->M_ = M;
   // add objective function.
   for (int j = 0; j < num_items; ++j)
   {
@@ -795,7 +796,7 @@ void VehicleSequencingModel::fillSolution(Solution<double> &solution, std::optio
   //   std::cout << "LP: " << solution.lp_ << std::endl;
   // }
 
-  if (solution.is_feasible_)
+  // if (solution.is_feasible_)
   {
 
     IloNumArray values(*env_);
@@ -899,6 +900,11 @@ void VehicleSequencingModel::fillSolution(Solution<double> &solution, std::optio
     solution.num_items_loaded_ = num_items_loaded;
     solution.num_unproductive_moves_ = num_unproductive_moves;
 
+    // // print solution
+    // for (auto i = 0; i < values.getSize(); ++i)
+    //   if (double_greater(values[i], 0.0))
+    //     std::cout << all_vars_array_[i].getName() << ": " << values[i] << std::endl;
+
     // std::cout << "num_items_loaded: " << num_items_loaded << std::endl
     //           << "num_unproductive_moves: " << num_unproductive_moves << std::endl;
     // x_values.end();
@@ -983,14 +989,23 @@ std::vector<int> VehicleSequencingModel::fillVarValuesFromSolution(std::vector<s
 
   const auto &precedence = instance_.precedence_matrix();
   const auto &successors_for_transport_per_item = instance_.successors_for_transport_per_item();
+  const int num_vehicles = instance_.num_vehicles();
   std::list<int> already_loaded_vehicles;
 
-  std::unordered_set<int> items_already_unloaded; // keeps items already moved to the buffer area or loaded to a vehicle.
+  const int num_items = instance_.num_items();
+  boost::dynamic_bitset<> items_already_unloaded(num_items, 0);  // keeps items already moved to the buffer area or loaded to a vehicle.
+  boost::dynamic_bitset<> items_already_allocated(num_items, 0); // keeps items already loaded to a vehicle.
+
+  boost::dynamic_bitset<> vehicles_used(num_vehicles, 0);
 
   for (int slot = 0; slot < fleet_allocation.size(); ++slot)
   {
     const auto vehicle = fleet_allocation[slot].first;
     const auto &items_of_vehicle = fleet_allocation[slot].second;
+
+    if (!items_of_vehicle.empty())
+      vehicles_used[vehicle] = 1;
+
     // std::cout << vehicle << ":";
     for (auto item : items_of_vehicle)
     {
@@ -1009,20 +1024,21 @@ std::vector<int> VehicleSequencingModel::fillVarValuesFromSolution(std::vector<s
       {
         if (precedence[j][item]) // j precedes/blocks item and item is available for transport.
         {
-          if (items_already_unloaded.find(j) == items_already_unloaded.end()) // if not yet moved to buffer or unloaded.
+          if ((items_already_allocated[j] == 0) && (items[j]->available_for_transport()))
           {
-            if (items[j]->available_for_transport())
-            {
-              values[x_size + z_size + vars_.w_index(j, item)] = 1;
-              // std::cout << "w " << j << " " << item << std::endl;
-            }
+            values[x_size + z_size + vars_.w_index(j, item)] = 1;
+            // std::cout << "w " << j << " " << item << std::endl;
+          }
+          if (items_already_unloaded[j] == 0) // if not yet moved to buffer or unloaded.
+          {
             // std::cout << "U " << j << std::endl;
             values[x_size + z_size + w_size + vars_.U_index(j)] = 1; // mark precedence violation.
-            items_already_unloaded.insert(j);                        // move item to buffer and mark violation at U_j.
+            items_already_unloaded[j] = 1;                           // move item to buffer and mark violation at U_j.
           }
         }
       }
-      items_already_unloaded.insert(item);
+      items_already_unloaded[item] = 1;
+      items_already_allocated[item] = 1;
     }
 
     // std::cout << std::endl;
@@ -1036,6 +1052,20 @@ std::vector<int> VehicleSequencingModel::fillVarValuesFromSolution(std::vector<s
     }
 
     already_loaded_vehicles.push_back(vehicle);
+  }
+
+  // mark ordering between all pairs of vehicles used versus non-used and all pairs of non-used.
+  for (int i = 0; i < num_vehicles; ++i)
+  {
+    for (int j = i + 1; j < num_vehicles; ++j)
+    {
+      if (vehicles_used[i] == 1 && vehicles_used[j] == 0)
+        values[x_size + vars_.z_index(i, j)] = 1;
+      else if (vehicles_used[i] == 0 && vehicles_used[j] == 1)
+        values[x_size + vars_.z_index(j, i)] = 1;
+      else if (vehicles_used[i] == 0 && vehicles_used[j] == 0)
+        values[x_size + vars_.z_index(i, j)] = 1; // symmetry breaking makes smaller index always come first when none of the vehicles is used.
+    }
   }
 
   // // print
@@ -1342,7 +1372,7 @@ void ItemSequencingModel::fillSolution(Solution<double> &solution, std::optional
   //   std::cout << "LP: " << solution.lp_ << std::endl;
   // }
 
-  if (solution.is_feasible_)
+  // if (solution.is_feasible_)
   {
 
     IloNumArray values(*env_);
@@ -1440,6 +1470,13 @@ void ItemSequencingModel::fillSolution(Solution<double> &solution, std::optional
     // z_values.end();
     // u_values.end();
     // U_values.end();
+
+    // // print solution
+    // for (auto i = 0; i < values.getSize(); ++i)
+    //   if (double_greater(values[i], 0.0))
+    //     std::cout << all_vars_array_[i].getName() << ": " << values[i] << std::endl;
+
+    // cplex_->exportModel("debug.lp");
     if (!var_values_opt.has_value())
       values.end();
   }
@@ -1462,6 +1499,8 @@ void ItemSequencingModel::populateByRow(bool add_symmetry_breaking)
   for (int j = 0; j < num_items; ++j)
     if (!successors_for_transport_per_item[j].empty())
       ++M;
+
+  this->M_ = M;
 
   // add objective function.
   for (int j = 0; j < num_items; ++j)
@@ -1595,19 +1634,15 @@ void ItemSequencingModel::populateByRow(bool add_symmetry_breaking)
     }
   }
 
-  // Restrictions (31)-(35).
+  // Restrictions (31)-(34).
   for (int j = 0; j < num_items_for_transport; ++j)
   {
     int item_pos_j = items_for_transport[j];
     for (int k = j + 1; k < num_items_for_transport; ++k)
     {
       int item_pos_k = items_for_transport[k];
-      IloExpr sum_x_i_j(*env_), sum_x_i_k(*env_);
       for (int i = 0; i < num_vehicles; ++i)
       {
-        sum_x_i_j += vars_.x(i, item_pos_j);
-        sum_x_i_k += vars_.x(i, item_pos_k);
-
         // (31) and (32).
         model_->add(vars_.x(i, item_pos_j) <= vars_.x(i, item_pos_k) + vars_.u(item_pos_j, item_pos_k) + vars_.u(item_pos_k, item_pos_j));
         model_->add(vars_.x(i, item_pos_k) <= vars_.x(i, item_pos_j) + vars_.u(item_pos_j, item_pos_k) + vars_.u(item_pos_k, item_pos_j));
@@ -1616,8 +1651,22 @@ void ItemSequencingModel::populateByRow(bool add_symmetry_breaking)
         model_->add(vars_.u(item_pos_j, item_pos_k) <= vars_.u(item_pos_k, item_pos_j) + 2 - vars_.x(i, item_pos_j) - vars_.x(i, item_pos_k));
         model_->add(vars_.u(item_pos_k, item_pos_j) <= vars_.u(item_pos_j, item_pos_k) + 2 - vars_.x(i, item_pos_j) - vars_.x(i, item_pos_k));
       }
+    }
+  }
 
-      // (35).
+  // Restrictions (35).
+  for (int j = 0; j < num_items_for_transport; ++j)
+  {
+    int item_pos_j = items_for_transport[j];
+    for (auto item_pos_k : successors_for_transport_per_item[item_pos_j])
+    {
+      IloExpr sum_x_i_j(*env_), sum_x_i_k(*env_);
+      for (int i = 0; i < num_vehicles; ++i)
+      {
+        sum_x_i_j += vars_.x(i, item_pos_j);
+        sum_x_i_k += vars_.x(i, item_pos_k);
+      }
+
       model_->add(vars_.u(item_pos_k, item_pos_j) >= sum_x_i_k - sum_x_i_j);
       sum_x_i_j.end();
       sum_x_i_k.end();
@@ -1669,7 +1718,8 @@ void ItemSequencingModel::populateByRow(bool add_symmetry_breaking)
           sum_x_i_j += vars_.x(i, item_pos_j);
           sum_x_i_k += vars_.x(i, item_pos_k);
         }
-        model_->add(vars_.u(item_pos_j, item_pos_k) >= 1 - sum_x_i_j - sum_x_i_k);
+        // model_->add(vars_.u(item_pos_j, item_pos_k) >= 1 - sum_x_i_j - sum_x_i_k);
+        model_->add(vars_.u(item_pos_j, item_pos_k) + vars_.u(item_pos_k, item_pos_j) <= sum_x_i_j + sum_x_i_k);
         model_->add(vars_.u(item_pos_j, item_pos_k) >= sum_x_i_j - sum_x_i_k);
         model_->add(vars_.u(item_pos_k, item_pos_j) >= sum_x_i_k - sum_x_i_j);
 
@@ -1738,47 +1788,82 @@ std::vector<int> ItemSequencingModel::fillVarValuesFromSolution(std::vector<std:
   const auto &precedence = instance_.precedence_matrix();
   const auto &successors_for_transport_per_item = instance_.successors_for_transport_per_item();
 
-  std::unordered_set<int> items_already_unloaded; // keeps items already moved to the buffer area or loaded to a vehicle.
+  const int num_items = instance_.num_items();
+
+  boost::dynamic_bitset<> items_already_unloaded(num_items, 0);                       // keeps items already moved to the buffer area or loaded to a vehicle.
+  boost::dynamic_bitset<> items_already_allocated_any_previous_vehicle(num_items, 0); // keeps items already loaded to any previous vehicle.
 
   for (int slot = 0; slot < fleet_allocation.size(); ++slot)
   {
     const auto vehicle = fleet_allocation[slot].first;
     const auto &items_of_vehicle = fleet_allocation[slot].second;
+    std::unordered_set<int> items_already_allocated_curr_vehicle;
     // std::cout << vehicle << ":";
     for (auto item : items_of_vehicle)
     {
       // std::cout << " " << item;
-      // std::cout << "x " << vehicle << " " << item << std::endl;
+      std::cout << "x " << vehicle << " " << item << std::endl;
       values[vars_.x_index(vehicle, item)] = 1;
       auto group = items[item]->group();
       if (reformulated_)
       {
-        // std::cout << "X " << vehicle << " " << group << std::endl;
+        std::cout << "X " << vehicle << " " << group << std::endl;
         values[x_size + u_size + U_size + vars_.X_index(vehicle, group)] = 1;
       }
 
       // look for blocking items that were not already removed.
       for (int j = 0; j < items.size(); ++j)
       {
-        if (precedence[j][item]) // j precedes/blocks item and item is available for transport.
+        if (precedence[j][item]) // j precedes/blocks item
         {
-          if (items_already_unloaded.find(j) == items_already_unloaded.end()) // if not yet moved to buffer or unloaded.
+          if (items_already_unloaded[j] == 0) // if not yet moved to buffer or unloaded.
           {
-            if (items[j]->available_for_transport())
-            {
-              values[x_size + vars_.u_index(j, item)] = 1;
-              // std::cout << "u " << j << " " << item << std::endl;
-            }
-            // std::cout << "U " << j << std::endl;
+            std::cout << "U " << j << std::endl;
             values[x_size + u_size + vars_.U_index(j)] = 1; // mark precedence violation.
-            items_already_unloaded.insert(j);               // move item to buffer and mark violation at U_j.
+            items_already_unloaded[j] = 1;                  // move item to buffer and mark violation at U_j.
           }
         }
       }
-      items_already_unloaded.insert(item);
+
+      for (size_t item_allocated = items_already_allocated_any_previous_vehicle.find_first(); item_allocated != boost::dynamic_bitset<>::npos; item_allocated = items_already_allocated_any_previous_vehicle.find_next(item_allocated))
+      {
+        values[x_size + vars_.u_index(item_allocated, item)] = 1;
+        std::cout << "u " << item_allocated << " " << item << std::endl;
+      }
+
+      items_already_unloaded[item] = 1;
+      items_already_allocated_curr_vehicle.insert(item);
     }
 
+    for (auto item : items_already_allocated_curr_vehicle)
+      items_already_allocated_any_previous_vehicle[item] = 1;
     // std::cout << std::endl;
+  }
+
+  boost::dynamic_bitset<> items_non_allocated = items_already_allocated_any_previous_vehicle;
+  items_non_allocated.flip();
+
+  for (size_t item_unmoved = items_non_allocated.find_first(); item_unmoved != boost::dynamic_bitset<>::npos; item_unmoved = items_non_allocated.find_next(item_unmoved))
+  {
+    if (items[item_unmoved]->available_for_transport())
+    {
+      // mark ordering for each pair of items alocated x non-allocated.
+      for (size_t item_allocated = items_already_allocated_any_previous_vehicle.find_first(); item_allocated != boost::dynamic_bitset<>::npos; item_allocated = items_already_allocated_any_previous_vehicle.find_next(item_allocated))
+      {
+        values[x_size + vars_.u_index(item_allocated, item_unmoved)] = 1;
+        std::cout << "u " << item_allocated << " " << item_unmoved << std::endl;
+      }
+
+      // // mark ordering for each pair of items non-allocated.
+      // for (size_t item_unmoved2 = items_unmoved.find_first(); item_unmoved2 != boost::dynamic_bitset<>::npos; item_unmoved2 = items_unmoved.find_next(item_unmoved2))
+      // {
+      //   if ((item_unmoved < item_unmoved2) && (items[item_unmoved2]->available_for_transport()))
+      //   {
+      //     values[x_size + vars_.u_index(item_unmoved, item_unmoved2)] = 1;
+      //     std::cout << "u " << item_unmoved << " " << item_unmoved2 << std::endl;
+      //   }
+      // }
+    }
   }
 
   // // print
@@ -2053,7 +2138,7 @@ void VehicleSlotsModel::fillSolution(Solution<double> &solution, std::optional<I
   //   std::cout << "LP: " << solution.lp_ << std::endl;
   // }
 
-  if (solution.is_feasible_)
+  // if (solution.is_feasible_)
   {
 
     IloNumArray values(*env_);
@@ -2168,6 +2253,8 @@ void VehicleSlotsModel::populateByRow(bool add_symmetry_breaking)
   for (int j = 0; j < num_items; ++j)
     if (!successors_for_transport_per_item[j].empty())
       ++M;
+
+  this->M_ = M;
 
   // std::cout << "M: " << M << std::endl;
   // getchar();
@@ -2399,7 +2486,8 @@ std::vector<int> VehicleSlotsModel::fillVarValuesFromSolution(std::vector<std::p
   const auto &precedence = instance_.precedence_matrix();
   const auto &successors_for_transport_per_item = instance_.successors_for_transport_per_item();
 
-  std::unordered_set<int> items_already_unloaded; // keeps items already moved to the buffer area or loaded to a vehicle.
+  const int num_items = instance_.num_items();
+  boost::dynamic_bitset<> items_already_unloaded(num_items, 0); // keeps items already moved to the buffer area or loaded to a vehicle.
 
   for (int slot = 0; slot < fleet_allocation.size(); ++slot)
   {
@@ -2421,17 +2509,17 @@ std::vector<int> VehicleSlotsModel::fillVarValuesFromSolution(std::vector<std::p
       // look for blocking items that were not already removed.
       for (int j = 0; j < items.size(); ++j)
       {
-        if (precedence[j][item]) // j precedes/blocks item and item is available for transport.
+        if (precedence[j][item]) // j precedes/blocks item.
         {
-          if (items_already_unloaded.find(j) == items_already_unloaded.end()) // if not yet moved to buffer or unloaded.
+          if (items_already_unloaded[j] == 0) // if not yet moved to buffer or unloaded.
           {
             // std::cout << "U " << j << std::endl;
             values[y1_size + y2_size + vars_.U_index(j)] = 1; // mark precedence violation.
-            items_already_unloaded.insert(j);                 // move item to buffer and mark violation at U_j.
+            items_already_unloaded[j] = 1;                    // move item to buffer and mark violation at U_j.
           }
         }
       }
-      items_already_unloaded.insert(item);
+      items_already_unloaded[item] = 1;
     }
 
     // std::cout << std::endl;

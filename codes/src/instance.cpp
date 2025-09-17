@@ -58,6 +58,7 @@ void Instance::FillInstanceFromFile(std::string dir_path, std::string file_name)
     set_precedence_matrix(precedence_matrix);
     set_fleet(fleet);
     num_stacks_ = num_stacks;
+    num_groups_ = num_groups;
 }
 
 Instance::Instance(std::string dir_path, std::string file_name)

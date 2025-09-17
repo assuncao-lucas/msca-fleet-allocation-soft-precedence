@@ -78,7 +78,7 @@ Solution<T>::Solution(void)
 	this->solution_ = NULL;
 	this->dimension_ = 0;
 	this->is_optimal_ = false;
-	this->is_feasible_ = true;
+	this->is_feasible_ = false;
 	this->out_of_memory_ = false;
 	this->lb_ = -std::numeric_limits<double>::infinity();
 	this->ub_ = std::numeric_limits<double>::infinity();
@@ -113,7 +113,7 @@ Solution<T>::Solution(int dimension)
 	this->solution_ = new Matrix<T>(dimension, dimension, 0);
 	this->dimension_ = dimension;
 	this->is_optimal_ = false;
-	this->is_feasible_ = true;
+	this->is_feasible_ = false;
 	this->out_of_memory_ = false;
 	this->lb_ = -std::numeric_limits<double>::infinity();
 	this->ub_ = std::numeric_limits<double>::infinity();
@@ -157,7 +157,7 @@ void Solution<T>::reset()
 		this->solution_ = NULL;
 	this->is_optimal_ = false;
 	this->out_of_memory_ = false;
-	this->is_feasible_ = true;
+	this->is_feasible_ = false;
 	this->lb_ = -std::numeric_limits<double>::infinity();
 	this->ub_ = std::numeric_limits<double>::infinity();
 	this->lp_ = std::numeric_limits<double>::infinity();
@@ -271,7 +271,7 @@ template <typename T>
 void Solution<T>::write_to_file(std::string algo, std::string folder, std::string file_name)
 {
 	std::fstream file;
-	std::string path = "..//..//solutions//";
+	std::string path = "..//solutions//";
 	path.append(folder);
 	// struct stat sb;
 	// if(stat(path.c_str(),&sb) != 0 || !S_ISDIR(sb.st_mode)) mkdir(path.c_str(),0777);
@@ -301,7 +301,7 @@ void Solution<T>::write_to_file(std::string algo, std::string folder, std::strin
 	file << "Ub: " << this->ub_ << std::endl;
 	file << "Root time(s): " << this->root_time_ << std::endl;
 	file << "MILP time(s): " << this->milp_time_ << std::endl;
-	file << "Total time(s): " << this->milp_time_ << std::endl;
+	file << "Total time + pre-processing (s): " << this->milp_time_ + this->pre_processing_time_ << std::endl;
 	file << "Separation time(s): " << this->separation_time_ << std::endl;
 	file << "# iterations of cutting plane at root: " << this->num_calls_to_callback_lp_ << std::endl;
 	file << "# cuts added/found via callback (LP): " << std::endl;

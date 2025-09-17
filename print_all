@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Change this to the folder you want
+folder="/home/lucas/Downloads/brp-instances-caserta-etal-2012/CRPTestcases_Caserta/selected_instances/"
+
+for file in "$folder"/*.dat; do
+    if [ -f "$file" ]; then
+        basename=$(basename "$file" .dat)
+        echo "$basename"
+    fi
+done | sort | while read name; do
+    echo "\"$name\""
+done

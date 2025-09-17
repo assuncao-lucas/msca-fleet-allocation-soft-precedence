@@ -168,7 +168,17 @@ void generateInstancesFromBlockRelocationInstances()
 {
 	std::string input_dir_path = "/home/lucas/Downloads/brp-instances-caserta-etal-2012/CRPTestcases_Caserta/selected_instances/";
 	std::string output_dir_path = "../../instances/";
-	std::vector<std::string> instances = {"data5-7-38", "data6-6-19", "data5-5-32", "data5-5-4", "data6-6-29", "data4-6-33", "data3-8-32", "data10-6-37", "data5-9-16", "data6-10-24", "data5-4-21", "data3-7-22", "data5-10-36", "data4-5-40", "data5-8-14", "data10-10-31", "data4-7-10", "data5-6-10", "data5-9-26", "data10-6-9"};
+	std::vector<std::string> instances = {"data40-40-3"};
+	// std::vector<std::string> instances = {"data10-10-31",
+	// 									  "data10-6-37",
+	// 									  "data20-20-6",
+	// 									  "data30-30-32",
+	// 									  "data5-10-36",
+	// 									  "data5-4-4",
+	// 									  "data5-6-10",
+	// 									  "data5-7-37",
+	// 									  "data5-9-26",
+	// 									  "data6-6-19"};
 	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5, 0.75};
 	const std::vector<double> number_of_item_groups_vec = {2, 5, 10};
 
@@ -181,6 +191,7 @@ void generateInstancesFromBlockRelocationInstances()
 static const struct option longOpts[] = {
 	{"solution-dir", required_argument, NULL, 'a'},
 	{"solve-exact", no_argument, NULL, 'b'},
+	{"ks-cluster-buckets-by-item-group", no_argument, NULL, 'c'},
 	{"reformulate", no_argument, NULL, 'd'},
 	{"vehicle-sequencing-model", no_argument, NULL, 'e'},
 	{"vehicle-slots-model", no_argument, NULL, 'f'},
@@ -205,13 +216,14 @@ void ParseArgumentsAndRun(int argc, char *argv[])
 	int seed = 0;
 	bool solve_exact = false, vehicle_sequencing_model = false, vehicle_slots_model = false, item_sequencing_model = false;
 	bool solve_relaxed = false, add_valid_inequalities = false;
-	double time_limit = -1.0;
+	double time_limit = -1.0, original_time_limit = -1.0;
 	bool force_use_all_vehicles = false;
 	bool solve_kernel_search = false;
 	int ks_max_size_bucket = K_KS_MAX_SIZE_BUCKET, ks_min_time_limit = K_KS_MIN_TIME_LIMIT, ks_max_time_limit = K_KS_MAX_TIME_LIMIT;
 	double ks_decay_factor = K_KS_DECAY_FACTOR_TIME_LIMIT;
 	bool reformulate = false;
 	bool add_symmetry_breaking = false;
+	bool cluster_buckets_by_item_group = false;
 
 	while ((c = getopt_long(argc, argv, "g:h:v:w:x:y:A:", longOpts, NULL)) != -1)
 	{
@@ -222,6 +234,9 @@ void ParseArgumentsAndRun(int argc, char *argv[])
 			break;
 		case 'b':
 			solve_exact = true;
+			break;
+		case 'c':
+			cluster_buckets_by_item_group = true;
 			break;
 		case 'd':
 			reformulate = true;
@@ -234,7 +249,7 @@ void ParseArgumentsAndRun(int argc, char *argv[])
 			break;
 		case 'g':
 			if (optarg)
-				time_limit = std::atoi(optarg);
+				original_time_limit = std::atoi(optarg);
 			break;
 		case 'h':
 			if (optarg)
@@ -299,6 +314,8 @@ void ParseArgumentsAndRun(int argc, char *argv[])
 
 	Instance inst(folder, file_name);
 
+	// std::cout << inst << std::endl;
+
 	std::unique_ptr<Model> model;
 	// VehicleSequencingModel model(inst, reformulate, add_symmetry_breaking, solve_relaxed);
 	// ItemSequencingModel model(inst, reformulate, add_symmetry_breaking, solve_relaxed);
@@ -322,8 +339,8 @@ void ParseArgumentsAndRun(int argc, char *argv[])
 	}
 	else
 	{
-		if (!double_equals(time_limit, -1))
-			time_limit = std::max(0.0, time_limit - timer->CurrentElapsedTime(ti));
+		if (!double_equals(original_time_limit, -1))
+			time_limit = std::max(0.0, original_time_limit - timer->CurrentElapsedTime(ti));
 	}
 
 	std::list<UserCut *> *root_cuts = nullptr;
@@ -341,9 +358,16 @@ void ParseArgumentsAndRun(int argc, char *argv[])
 
 	// int max_bucket_size = std::ceil(inst.num_items() / inst.num_stacks());
 
-	if (!double_equals(time_limit, -1))
-		time_limit = std::max(0.0, time_limit - timer->CurrentElapsedTime(ti));
+	solution.pre_processing_time_ = timer->CurrentElapsedTime(ti);
+	// std::cout << "ja usou " << solution.pre_processing_time_ << "s" << std::endl;
+	if (!double_equals(original_time_limit, -1))
+	{
+		// std::cout << original_time_limit << " - " << solution.pre_processing_time_ << " = ";
+		time_limit = std::max(0.0, original_time_limit - solution.pre_processing_time_);
+		// std::cout << time_limit << std::endl;
+	}
 
+	// std::cout << "time_limit " << time_limit << "s" << std::endl;
 	if (solve_exact || solve_relaxed)
 	{
 		auto algo = Solution<double>::GenerateAlgorithmName(solve_relaxed, add_valid_inequalities, add_symmetry_breaking, vehicle_sequencing_model, item_sequencing_model, vehicle_slots_model, reformulate);
@@ -351,7 +375,8 @@ void ParseArgumentsAndRun(int argc, char *argv[])
 		if (model->optimize(time_limit, add_valid_inequalities, root_cuts, nullptr, solution))
 			model->fillSolution(solution, std::nullopt);
 
-		std::cout << "num items: " << solution.num_items_loaded_ << std::endl
+		std::cout << "Bound: " << solution.lb_ << std::endl
+				  << "num items: " << solution.num_items_loaded_ << std::endl
 				  << "num unproductive moves: " << solution.num_unproductive_moves_ << std::endl;
 
 		solution.write_to_file(algo, dir_solutions, file_name);
@@ -369,11 +394,12 @@ void ParseArgumentsAndRun(int argc, char *argv[])
 		int max_bucket_size = std::ceil(total_capacity / fleet.size());
 
 		KernelSearch ks(inst);
-		auto heuristic_solution = ks.Run(*model, root_cuts, max_bucket_size, ks_min_time_limit, ks_max_time_limit, ks_decay_factor, false, true);
+		auto heuristic_solution = ks.Run(*model, root_cuts, max_bucket_size, ks_min_time_limit, ks_max_time_limit, ks_decay_factor, cluster_buckets_by_item_group, true, time_limit);
 
-		auto algo = KSHeuristicSolution::GenerateFileName(add_valid_inequalities, add_symmetry_breaking, vehicle_sequencing_model, item_sequencing_model, vehicle_slots_model, reformulate, max_bucket_size, ks_min_time_limit, ks_max_time_limit, ks_decay_factor);
+		auto algo = KSHeuristicSolution::GenerateFileName(add_valid_inequalities, add_symmetry_breaking, vehicle_sequencing_model, item_sequencing_model, vehicle_slots_model, reformulate, ks_min_time_limit, ks_max_time_limit, ks_decay_factor, cluster_buckets_by_item_group);
 
-		std::cout << "num items: " << heuristic_solution->num_items_loaded_ << std::endl
+		std::cout << "Bound: " << heuristic_solution->lb_ << std::endl
+				  << "num items: " << heuristic_solution->num_items_loaded_ << std::endl
 				  << "num unproductive moves: " << heuristic_solution->num_unproductive_moves_ << std::endl;
 
 		heuristic_solution->WriteToFile(inst, algo, dir_solutions, file_name);
@@ -397,11 +423,11 @@ void ParseArgumentsAndRun(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-	// std::string input_dir_path = "/home/lucas/Downloads/large_instances/";
+	// std::string input_dir_path = "/home/lucas/Downloads/brp-instances-caserta-etal-2012/CRPTestcases_Caserta/selected_instances/";
 	// std::string output_dir_path = "../../instances/";
 
-	// generateInstancesFromBlockRelocationInstancesIter(input_dir_path, output_dir_path, "data40-40-4", 0.75, 10);
-	// // generateInstancesFromBlockRelocationInstances();
+	// // generateInstancesFromBlockRelocationInstancesIter(input_dir_path, output_dir_path, "data40-40-4", 0.75, 10);
+	// generateInstancesFromBlockRelocationInstances();
 
 	// return 0;
 	try
