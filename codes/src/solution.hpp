@@ -31,6 +31,8 @@ public:
 	double lp_;
 	int num_calls_to_callback_;
 	int num_calls_to_callback_lp_;
+	int num_items_loaded_ = 0;
+	int num_unproductive_moves_ = 0;
 	int num_tailing_offs_;
 	int num_nodes_;
 	int num_conflicts_ = 0;
@@ -40,6 +42,7 @@ public:
 	double separation_time_;
 	double root_time_;
 	double milp_time_;
+	double total_time_;
 	double pre_processing_time_;
 	bool is_optimal_;
 	bool is_feasible_;
@@ -51,8 +54,7 @@ public:
 	void reset();
 	void increment_elaspsed_time(double time);
 	void write_to_file(std::string algo, std::string folder, std::string file_name);
-	static std::string GenerateAlgorithmName(bool solve_relaxed, bool solve_cutting_plane, bool solve_benders, bool cccs, bool avics, bool baseline, bool capacity_based, bool benders_combine_feas_opt_cuts, bool benders_separate_benders_cuts_relaxation, bool benders_solve_generic_callback);
-
+	static std::string GenerateAlgorithmName(bool solve_relaxed, bool solve_cutting_plane, bool add_symmetry_breaking, bool vehicle_sequencing_model, bool item_sequencing_model, bool vehicle_slots_model, bool reformulate);
 	std::vector<int> num_cuts_found_;
 	std::vector<int> num_cuts_added_;
 
@@ -76,7 +78,7 @@ Solution<T>::Solution(void)
 	this->solution_ = NULL;
 	this->dimension_ = 0;
 	this->is_optimal_ = false;
-	this->is_feasible_ = true;
+	this->is_feasible_ = false;
 	this->out_of_memory_ = false;
 	this->lb_ = -std::numeric_limits<double>::infinity();
 	this->ub_ = std::numeric_limits<double>::infinity();
@@ -86,6 +88,7 @@ Solution<T>::Solution(void)
 	this->separation_time_ = 0.0;
 	this->root_time_ = 0.0;
 	this->milp_time_ = 0.0;
+	this->total_time_ = 0.0;
 	this->pre_processing_time_ = 0.0;
 	this->num_nodes_ = 0;
 	this->num_conflicts_ = 0;
@@ -110,7 +113,7 @@ Solution<T>::Solution(int dimension)
 	this->solution_ = new Matrix<T>(dimension, dimension, 0);
 	this->dimension_ = dimension;
 	this->is_optimal_ = false;
-	this->is_feasible_ = true;
+	this->is_feasible_ = false;
 	this->out_of_memory_ = false;
 	this->lb_ = -std::numeric_limits<double>::infinity();
 	this->ub_ = std::numeric_limits<double>::infinity();
@@ -120,6 +123,7 @@ Solution<T>::Solution(int dimension)
 	this->separation_time_ = 0.0;
 	this->root_time_ = 0.0;
 	this->milp_time_ = 0.0;
+	this->total_time_ = 0.0;
 	this->pre_processing_time_ = 0.0;
 	this->num_nodes_ = 0;
 	this->num_conflicts_ = 0;
@@ -153,7 +157,7 @@ void Solution<T>::reset()
 		this->solution_ = NULL;
 	this->is_optimal_ = false;
 	this->out_of_memory_ = false;
-	this->is_feasible_ = true;
+	this->is_feasible_ = false;
 	this->lb_ = -std::numeric_limits<double>::infinity();
 	this->ub_ = std::numeric_limits<double>::infinity();
 	this->lp_ = std::numeric_limits<double>::infinity();
@@ -162,6 +166,9 @@ void Solution<T>::reset()
 	this->separation_time_ = 0.0;
 	this->root_time_ = 0.0;
 	this->milp_time_ = 0.0;
+	this->total_time_ = 0.0;
+	this->num_items_loaded_ = 0;
+	this->num_unproductive_moves_ = 0;
 	this->pre_processing_time_ = 0.0;
 	this->num_cuts_added_ = std::vector<int>(K_NUM_TYPES_CALLBACKS, 0);
 	this->num_cuts_found_ = std::vector<int>(K_NUM_TYPES_CALLBACKS, 0);
@@ -233,7 +240,7 @@ void Solution<T>::increment_elaspsed_time(double time)
 }
 
 template <typename T>
-std::string Solution<T>::GenerateAlgorithmName(bool solve_relaxed, bool solve_cutting_plane, bool solve_benders, bool cccs, bool avics, bool baseline, bool capacity_based, bool benders_combine_feas_opt_cuts, bool benders_separate_benders_cuts_relaxation, bool benders_solve_generic_callback)
+std::string Solution<T>::GenerateAlgorithmName(bool solve_relaxed, bool solve_cutting_plane, bool add_symmetry_breaking, bool vehicle_sequencing_model, bool item_sequencing_model, bool vehicle_slots_model, bool reformulate)
 {
 	std::string algo;
 	if (solve_relaxed)
@@ -241,31 +248,22 @@ std::string Solution<T>::GenerateAlgorithmName(bool solve_relaxed, bool solve_cu
 	if (solve_cutting_plane)
 	{
 		algo += "cb_";
-		if (avics)
-			algo += "AVICs_";
-		if (cccs)
-			algo += "CCCs_";
+		// if (cccs)
+		// 	algo += "CCCs_";
 	}
-	if (solve_benders)
-	{
-		if (benders_combine_feas_opt_cuts)
-			algo += "benders_combined_";
-		else
-			algo += "benders_";
 
-		if (benders_separate_benders_cuts_relaxation)
-			algo += "cuts_relaxation_";
+	if (vehicle_sequencing_model)
+		algo += "vehc_seq_model";
+	if (item_sequencing_model)
+		algo += "itm_seq_model";
+	if (vehicle_slots_model)
+		algo += "vehc_slot_model";
 
-		if (benders_solve_generic_callback)
-			algo += "generic_callback_";
-		else
-			algo += "lazy_callback_";
-	}
-	if (baseline)
-		algo += "baseline";
-	if (capacity_based)
-		algo += "csc";
+	if (add_symmetry_breaking)
+		algo += "_sym_break";
 
+	if (reformulate)
+		algo += "_reform";
 	return algo;
 }
 
@@ -296,11 +294,14 @@ void Solution<T>::write_to_file(std::string algo, std::string folder, std::strin
 	else
 		file << "STATUS: FEASIBLE" << std::endl;
 
+	file << "num_items_loaded: " << num_items_loaded_ << std::endl
+		 << "num_unproductive_moves: " << num_unproductive_moves_ << std::endl;
 	file << "LP: " << this->lp_ << std::endl;
 	file << "Lb: " << this->lb_ << std::endl;
 	file << "Ub: " << this->ub_ << std::endl;
 	file << "Root time(s): " << this->root_time_ << std::endl;
 	file << "MILP time(s): " << this->milp_time_ << std::endl;
+	file << "Total time + pre-processing (s): " << this->milp_time_ + this->pre_processing_time_ << std::endl;
 	file << "Separation time(s): " << this->separation_time_ << std::endl;
 	file << "# iterations of cutting plane at root: " << this->num_calls_to_callback_lp_ << std::endl;
 	file << "# cuts added/found via callback (LP): " << std::endl;
@@ -311,10 +312,6 @@ void Solution<T>::write_to_file(std::string algo, std::string folder, std::strin
 	for (int i = 0; i < K_NUM_TYPES_CALLBACKS; i++)
 		file << "type " << i << ": " << (this->num_cuts_added_)[i] << "/" << (this->num_cuts_found_)[i] << std::endl;
 	file << "# nodes explored: " << this->num_nodes_ << std::endl;
-	file << "# tailing offs treated: " << this->num_tailing_offs_ << std::endl;
-	file << "# maximal cliques: " << this->num_maximal_cliques_ << std::endl;
-	file << "Pre Processing time (s): " << this->pre_processing_time_ << std::endl;
-	file << "# num conflicts: " << this->num_conflicts_ << std::endl;
 
 	file.close();
 }

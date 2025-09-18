@@ -55,17 +55,20 @@ public:
 class Instance
 {
 private:
-	std::vector<std::shared_ptr<Item>> items_;						   // complete set of items.
-	std::vector<int> items_for_transport_;							   // indexes of items that can be transported.
-	std::vector<int> items_fixed_;									   // indexes of items fixed.
-	std::unordered_map<int, std::unordered_set<int>> items_per_group_; // partition of items per group.
+	std::vector<std::shared_ptr<Item>> items_;										 // complete set of items.
+	std::vector<int> items_for_transport_;											 // indexes of items that can be transported.
+	std::vector<int> items_fixed_;													 // indexes of items fixed.
+	std::unordered_map<int, std::unordered_set<int>> items_for_transport_per_group_; // partition of items_for_transport per group.
 
 	Matrix<int> precedence_matrix_;
 
 	std::vector<std::list<int>> successors_for_transport_per_item_;
+	std::vector<std::list<int>> predecessors_for_transport_per_item_;
 	std::vector<std::list<int>> successors_fixed_per_item_;
 
 	std::vector<std::shared_ptr<Vehicle>> fleet_;
+	int num_stacks_ = 0;
+	int num_groups_ = 0;
 
 	bool PropagatePrecedence(); // guarantees transitivity of precedence. if a -> b and b -> c, then a -> c.
 	bool PropagatePrecedenceIter(std::stack<std::pair<int, bool>> &main_stack, std::vector<bool> &visited, std::vector<bool> &in_stack);
@@ -73,15 +76,24 @@ private:
 public:
 	explicit Instance() = default;
 	explicit Instance(std::string dir_path, std::string file_name);
-	explicit Instance(std::vector<std::shared_ptr<Item>> items, Matrix<int> precedence_matrix, std::vector<std::shared_ptr<Vehicle>> fleet);
+	explicit Instance(std::vector<std::shared_ptr<Item>> items, Matrix<int> precedence_matrix, std::vector<std::shared_ptr<Vehicle>> fleet, int num_stacks);
 	virtual ~Instance() = default;
 
-	void FillInstanceFromFile(std::string dir_path, std::string file_name, double service_time_deviation);
-	void WriteToFile(std::string dir_path, std::string curr_file);
+	void FillInstanceFromFile(std::string dir_path, std::string file_name);
 
 	friend std::ostream &operator<<(std::ostream &out, const Instance &instance);
 
 	// getters.
+	const int num_stacks() const
+	{
+		return num_stacks_;
+	}
+
+	const int num_groups() const
+	{
+		return num_groups_;
+	}
+
 	const std::vector<std::shared_ptr<Item>> &items() const
 	{
 		return items_;
@@ -97,9 +109,9 @@ public:
 		return items_fixed_;
 	}
 
-	const std::unordered_map<int, std::unordered_set<int>> &items_per_group() const
+	const std::unordered_map<int, std::unordered_set<int>> &items_for_transport_per_group() const
 	{
-		return items_per_group_;
+		return items_for_transport_per_group_;
 	}
 
 	const Matrix<int> &precedence_matrix() const
@@ -120,6 +132,11 @@ public:
 	const std::vector<std::list<int>> &successors_for_transport_per_item() const
 	{
 		return successors_for_transport_per_item_;
+	}
+
+	const std::vector<std::list<int>> &predecessors_for_transport_per_item() const
+	{
+		return predecessors_for_transport_per_item_;
 	}
 
 	const std::vector<std::list<int>> &successors_fixed_per_item() const

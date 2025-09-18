@@ -14,13 +14,13 @@ const bool K_STOP = true; // marks if problem considered is STOP (true) or TOP (
 const bool K_SEPARATE_CUTS_ONLY_AT_ROOT = false;
 const double K_PRECISION = 10000;
 const double K_PRECISION_COMPARE_DOUBLE = 0.0000001;
-const int K_NUM_TYPES_CALLBACKS = 9;
+const int K_NUM_TYPES_CALLBACKS = 1;
 
 const double K_TAILING_OFF_TOLERANCE = 0.001;
 const double K_GCCS_TOLERANCE = 0.05;
 const double K_CONFLICT_TOLERANCE = 0.3;
 const double K_CLIQUE_CONFLICT_TOLERANCE = 0.01;
-const double K_CUTS_ANGLE_COSIN_LIMIT = 0.03;
+const double K_CUTS_ANGLE_COSIN_LIMIT = 10.0; // 0.03;
 
 const bool K_DISABLE_PREPROCESS_HEURISTICS = false;
 const bool K_SET_PRIORITY_ORDER = false;
@@ -29,15 +29,7 @@ const bool K_ONLY_MAXIMUM_CLIQUES_PER_VERTEX = false;
 const bool K_ADD_INITIAL_HEURISTIC_SOLUTION = true;
 const bool K_PREPROCESS_REDUCED_COSTS = false;
 
-const int K_TYPE_GCC_CUT = 0;
-const int K_TYPE_FLOW_BOUNDS_CUT = 1;
-const int K_TYPE_INITIAL_FLOW_BOUNDS_CUT = 2;
-const int K_TYPE_CONFLICT_CUT = 3;
-const int K_TYPE_COVER_BOUND_CUT = 4;
-const int K_TYPE_CLIQUE_CONFLICT_CUT = 5;
-const int K_TYPE_CLIQUE_CONFLICT_CUT_EXT = 6;
-const int K_TYPE_COVER_BOUND_CUT_EXT = 7;
-const int K_TYPE_INITIAL_ARC_VERTEX_INFERENCE_CUT = 8;
+const int K_TYPE_CLIQUE_CONFLICT_CUT = 0;
 
 const int K_TYPE_PATH_BOUND_CUT = -1;
 
