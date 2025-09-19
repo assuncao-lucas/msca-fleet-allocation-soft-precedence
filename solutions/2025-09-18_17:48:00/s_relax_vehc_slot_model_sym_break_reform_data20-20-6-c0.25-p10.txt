@@ -1,0 +1,17 @@
+STATUS: INFEASIBLE
+num_items_loaded: 358
+num_unproductive_moves: 0
+LP: 42112.00
+Lb: -inf
+Ub: inf
+Root time(s): 0.38
+MILP time(s): 0.00
+Total time + pre-processing (s): 0.10
+Separation time(s): 0.00
+# iterations of cutting plane at root: 0
+# cuts added/found via callback (LP): 
+type 0: 0/0
+# calls to callback: 0
+# cuts added/found via callback (MILP): 
+type 0: 0/0
+# nodes explored: 0
