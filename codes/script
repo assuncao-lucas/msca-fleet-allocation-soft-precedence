@@ -6,7 +6,7 @@ mkdir "../solutions/"$dir_solutions
 
 time_limit=3600
 
-start_instance="a"
+start_instance="data30-30-32-c0.75-p5"
 files=()
 time_limit=3600
 
@@ -78,3 +78,5 @@ done
 # ./bin/stop --solution-dir "tests" --instance "../instances/data10-6-37-c0.75-p10.txt" --solve-kernel-search --vehicle-sequencing-model --symmetry-breaking --reformulate --ks-min-time-limit 30 --ks-max-time-limit 60 --ks-decay-factor 0.9 --ks-cluster-buckets-by-item-group
 
 # ./bin/stop --solution-dir "tests" --instance "../instances/data40-40-3-c0.75-p10.txt" --solve-exact --vehicle-sequencing-model --symmetry-breaking --reformulate --ks-min-time-limit 30 --ks-max-time-limit 60 --ks-decay-factor 0.9 --ks-cluster-buckets-by-item-group --time-limit 60
+
+# ./bin/stop --solution-dir "tests" --instance "../instances/data30-30-32-c0.75-p10.txt" --solve-relaxed --vehicle-sequencing-model --symmetry-breaking --reformulate --CCCs

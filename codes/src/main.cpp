@@ -375,9 +375,15 @@ void ParseArgumentsAndRun(int argc, char *argv[])
 		if (model->optimize(time_limit, add_valid_inequalities, root_cuts, nullptr, solution))
 			model->fillSolution(solution, std::nullopt);
 
-		std::cout << "Bound: " << solution.lb_ << std::endl
-				  << "num items: " << solution.num_items_loaded_ << std::endl
-				  << "num unproductive moves: " << solution.num_unproductive_moves_ << std::endl;
+		if (solve_relaxed)
+		{
+			std::cout << "Bound: " << solution.lp_ << std::endl;
+		}
+		{
+			std::cout << "Bound: " << solution.lb_ << std::endl
+					  << "num items: " << solution.num_items_loaded_ << std::endl
+					  << "num unproductive moves: " << solution.num_unproductive_moves_ << std::endl;
+		}
 
 		solution.write_to_file(algo, dir_solutions, file_name);
 		// std::cout << "cuts added root: " << solution.num_cuts_added_lp_[K_TYPE_CLIQUE_CONFLICT_CUT] << std::endl;

@@ -171,6 +171,7 @@ bool Model::optimize(double total_time_limit, bool find_root_cuts, std::list<Use
     if (is_relaxed_)
     {
       curr_bound = cplex_->getObjValue();
+      // std::cout << curr_bound << std::endl;
 
       if (find_root_cuts && double_less(curr_bound, previous_bound, K_TAILING_OFF_TOLERANCE))
         found_cuts |= findAndAddValidInequalities(solution, root_cuts);
