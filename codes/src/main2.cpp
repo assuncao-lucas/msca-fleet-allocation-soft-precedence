@@ -206,18 +206,18 @@ void GenerateAlgorithmsLatexTable(std::string folder)
 	// std::cout << output_name << std::endl;
 
 	std::vector<std::string> instances = {
-		"data5-6-10",
-		"data6-6-19",
-		"data5-9-26",
-		"data5-10-36",
 		"data10-6-37",
-		"data10-10-31",
 		"data20-20-6",
 		"data30-30-32",
-		"data40-40-3"};
-
-	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5, 0.75};
-	const std::vector<int> number_of_item_groups_vec = {2, 5, 10};
+		"data40-40-3",
+		"data5-10-36",
+		"data5-4-4",
+		"data5-6-10",
+		"data5-7-37",
+		"data5-9-26",
+		"data6-6-19"};
+	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5};
+	const std::vector<int> number_of_item_groups_vec = {2, 3, 4, 5};
 
 	std::fstream output;
 	std::string output_name;
@@ -448,18 +448,18 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 	// std::cout << output_name << std::endl;
 
 	std::vector<std::string> instances = {
-		"data5-6-10",
-		"data6-6-19",
-		"data5-9-26",
-		"data5-10-36",
 		"data10-6-37",
-		"data10-10-31",
 		"data20-20-6",
 		"data30-30-32",
-		"data40-40-3"};
-
-	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5, 0.75};
-	const std::vector<int> number_of_item_groups_vec = {2, 5, 10};
+		"data40-40-3",
+		"data5-10-36",
+		"data5-4-4",
+		"data5-6-10",
+		"data5-7-37",
+		"data5-9-26",
+		"data6-6-19"};
+	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5};
+	const std::vector<int> number_of_item_groups_vec = {2, 3, 4, 5};
 
 	// algorithms.push_back("baseline_ks_b5_[84,19]_d0.96_feas");
 	algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_seq_model_sym_break_reform_[60,30]_d0.90"));
@@ -1096,18 +1096,18 @@ void GenerateLPImprovementsLatexTable(std::string folder)
 	output << std::setprecision(2) << std::fixed;
 
 	std::vector<std::string> instances = {
-		"data5-6-10",
-		"data6-6-19",
-		"data5-9-26",
-		"data5-10-36",
 		"data10-6-37",
-		"data10-10-31",
 		"data20-20-6",
 		"data30-30-32",
-		"data40-40-3"};
-
-	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5, 0.75};
-	const std::vector<int> number_of_item_groups_vec = {2, 5, 10};
+		"data40-40-3",
+		"data5-10-36",
+		"data5-4-4",
+		"data5-6-10",
+		"data5-7-37",
+		"data5-9-26",
+		"data6-6-19"};
+	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5};
+	const std::vector<int> number_of_item_groups_vec = {2, 3, 4, 5};
 
 	std::vector<std::vector<double>> total_improvement_per_algo(algorithms.size(), std::vector<double>());
 	std::vector<double> total_avg_improvement(algorithms.size(), 0.0);
@@ -1252,31 +1252,31 @@ int main()
 	// std::string folder = "2024-06-23_13:01:07_all_kernel_search_less_time";
 	std::string folder_heuristic_sol = "2025-09-12_18:09:41_ks";
 	std::string folder_exact_sol = "2025-09-12_10:29:06_exact";
-	std::string folder_relax = "2025-09-12_10:12:50_relax";
+	std::string folder_relax = "2025-09-18_17:48:00";
 	// try
 	// {
 	// GenerateAlgorithmsLatexTablePerInstance(folder);
 	// return 1;
-	// GenerateLPImprovementsLatexTable(folder_relax);
+	GenerateLPImprovementsLatexTable(folder_relax);
 	// GenerateAlgorithmsLatexTable(folder_exact_sol);
-	GenerateHeuristicsLatexTable(folder_exact_sol, folder_heuristic_sol, false);
+	// GenerateHeuristicsLatexTable(folder_exact_sol, folder_heuristic_sol, false);
 
-	namespace fs = std::filesystem;
+	// namespace fs = std::filesystem;
 
-	std::string path = "./"; // Change this to your target folder
+	// std::string path = "./"; // Change this to your target folder
 
-	for (const auto &entry : fs::directory_iterator(path))
-	{
-		if (entry.is_regular_file())
-		{
-			auto filePath = entry.path();
-			if (filePath.extension() == ".txt")
-			{
-				std::string filename = filePath.stem().string(); // stem() removes extension
-				std::cout << filename << std::endl;
-			}
-		}
-	}
+	// for (const auto &entry : fs::directory_iterator(path))
+	// {
+	// 	if (entry.is_regular_file())
+	// 	{
+	// 		auto filePath = entry.path();
+	// 		if (filePath.extension() == ".txt")
+	// 		{
+	// 			std::string filename = filePath.stem().string(); // stem() removes extension
+	// 			std::cout << filename << std::endl;
+	// 		}
+	// 	}
+	// }
 
 	return 0;
 }
