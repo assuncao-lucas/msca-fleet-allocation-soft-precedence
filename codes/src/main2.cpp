@@ -209,7 +209,7 @@ void GenerateAlgorithmsLatexTable(std::string folder)
 		"data10-6-37",
 		"data20-20-6",
 		"data30-30-32",
-		"data40-40-3",
+		// "data40-40-3",
 		"data5-10-36",
 		"data5-4-4",
 		"data5-6-10",
@@ -451,7 +451,7 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 		"data10-6-37",
 		"data20-20-6",
 		"data30-30-32",
-		"data40-40-3",
+		// "data40-40-3",
 		"data5-10-36",
 		"data5-4-4",
 		"data5-6-10",
@@ -1076,10 +1076,10 @@ void GenerateLPImprovementsLatexTable(std::string folder)
 	algorithms.push_back("relax_cb_vehc_slot_model_sym_break");
 	algorithms.push_back("relax_cb_vehc_slot_model_sym_break_reform");
 
-	algorithms.push_back("relax_itm_seq_model_sym_break");
-	algorithms.push_back("relax_itm_seq_model_sym_break_reform");
-	algorithms.push_back("relax_cb_itm_seq_model_sym_break");
-	algorithms.push_back("relax_cb_itm_seq_model_sym_break_reform");
+	// algorithms.push_back("relax_itm_seq_model_sym_break");
+	// algorithms.push_back("relax_itm_seq_model_sym_break_reform");
+	// algorithms.push_back("relax_cb_itm_seq_model_sym_break");
+	// algorithms.push_back("relax_cb_itm_seq_model_sym_break_reform");
 
 	std::fstream output;
 	std::string output_name = "..//tables//latex//table_LP_improvements.txt";
@@ -1096,18 +1096,18 @@ void GenerateLPImprovementsLatexTable(std::string folder)
 	output << std::setprecision(2) << std::fixed;
 
 	std::vector<std::string> instances = {
-		"data10-6-37",
-		"data20-20-6",
-		"data30-30-32",
-		"data40-40-3",
+		// "data10-6-37",
+		// "data20-20-6",
+		// "data30-30-32",
+		// // "data40-40-3",
 		"data5-10-36",
 		"data5-4-4",
 		"data5-6-10",
 		"data5-7-37",
 		"data5-9-26",
 		"data6-6-19"};
-	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5};
-	const std::vector<int> number_of_item_groups_vec = {2, 3, 4, 5};
+	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25};
+	const std::vector<int> number_of_item_groups_vec = {10};
 
 	std::vector<std::vector<double>> total_improvement_per_algo(algorithms.size(), std::vector<double>());
 	std::vector<double> total_avg_improvement(algorithms.size(), 0.0);
@@ -1159,6 +1159,7 @@ void GenerateLPImprovementsLatexTable(std::string folder)
 
 					std::string::iterator end_pos = std::remove(status.begin(), status.end(), ' ');
 					status.erase(end_pos, status.end());
+					status = "FEASIBLE";
 
 					getline(input, line);
 					getline(input, line);
@@ -1252,7 +1253,7 @@ int main()
 	// std::string folder = "2024-06-23_13:01:07_all_kernel_search_less_time";
 	std::string folder_heuristic_sol = "2025-09-12_18:09:41_ks";
 	std::string folder_exact_sol = "2025-09-12_10:29:06_exact";
-	std::string folder_relax = "2025-09-18_17:48:00";
+	std::string folder_relax = "2025-09-19_19:26:30";
 	// try
 	// {
 	// GenerateAlgorithmsLatexTablePerInstance(folder);

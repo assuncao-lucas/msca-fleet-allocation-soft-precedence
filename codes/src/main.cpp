@@ -180,7 +180,7 @@ void generateInstancesFromBlockRelocationInstances()
 		"data5-9-26",
 		"data6-6-19"};
 	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5};
-	const std::vector<double> number_of_item_groups_vec = {2, 3, 4, 5};
+	const std::vector<double> number_of_item_groups_vec = {10};
 
 	for (auto instance_name : instances)
 		for (auto percentage : percentage_of_items_serviced_by_fleet_vec)
@@ -379,6 +379,7 @@ void ParseArgumentsAndRun(int argc, char *argv[])
 		{
 			std::cout << "Bound: " << solution.lp_ << std::endl;
 		}
+		else
 		{
 			std::cout << "Bound: " << solution.lb_ << std::endl
 					  << "num items: " << solution.num_items_loaded_ << std::endl
