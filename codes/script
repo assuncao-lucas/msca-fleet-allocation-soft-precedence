@@ -33,20 +33,20 @@ do
 	then
 		echo "* "$curr_instance
 		# Compact
-		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking
-		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking --reformulate
-		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking
-		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking --reformulate
-		# # ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking
-		# # ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking --reformulate		
+		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking
+		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking --reformulate
+		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking
+		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking --reformulate
+		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking
+		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking --reformulate		
 
-		# # Cut and branch
-		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking --CCCs
-		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking --reformulate --CCCs
-		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking --CCCs
-		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking --reformulate --CCCs
-		# # ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking --CCCs
-		# # ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking --reformulate --CCCs
+		# Cut and branch
+		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking --CCCs
+		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking --reformulate --CCCs
+		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking --CCCs
+		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking --reformulate --CCCs
+		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking --CCCs
+		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking --reformulate --CCCs
 	fi
 done
 
