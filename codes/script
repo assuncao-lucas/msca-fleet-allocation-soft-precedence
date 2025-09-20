@@ -6,9 +6,10 @@ mkdir "../solutions/"$dir_solutions
 
 time_limit=3600
 
-start_instance="data30-30-32-c0.50-p10"
+start_instance="a"
 files=()
-time_limit=3600
+time_limit_exact=3600
+time_limit_ks=900
 
 cont=0
 for file in $dir0/*.txt
@@ -19,59 +20,59 @@ done
 
 readarray -t sorted < <(printf '%s\0' "${files[@]}" | sort -z | xargs -0n1)
 
-# Relaxation
-for file in ${sorted[@]}
-do
-	substr=$(echo $file | rev | cut -d'/' -f 1 | rev)
-	substr=${substr//".txt"/}
-
-	# echo $dir_solutions
-	# echo $file
-
-	curr_instance=$substr
-	if [[ "$curr_instance" > "$start_instance" ]];
-	then
-		echo "* "$curr_instance
-		# Compact
-		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking
-		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking --reformulate
-		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking
-		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking --reformulate
-		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking
-		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking --reformulate		
-
-		# Cut and branch
-		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking --CCCs
-		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking --reformulate --CCCs
-		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking --CCCs
-		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking --reformulate --CCCs
-		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking --CCCs
-		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking --reformulate --CCCs
-	fi
-done
-
-# # Exact and Kernel Search
+# # Relaxation
 # for file in ${sorted[@]}
 # do
 # 	substr=$(echo $file | rev | cut -d'/' -f 1 | rev)
 # 	substr=${substr//".txt"/}
 
+# 	# echo $dir_solutions
+# 	# echo $file
+
 # 	curr_instance=$substr
 # 	if [[ "$curr_instance" > "$start_instance" ]];
 # 	then
 # 		echo "* "$curr_instance
-# 		# # Compact 
-# 		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-exact --vehicle-sequencing-model --symmetry-breaking --reformulate
-# 		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-exact --vehicle-slots-model --symmetry-breaking --reformulate
-# 		# # ./bin/stop --solution-dir $dir_solutions --instance $file --solve-exact --item-sequencing-model --symmetry-breaking --reformulate
-		
-# 		# # Kernel Search
-# 		./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-sequencing-model --symmetry-breaking --reformulate --ks-min-time-limit 30 --ks-max-time-limit 60 --ks-decay-factor 0.9
-# 		./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-slots-model --symmetry-breaking --reformulate	--ks-min-time-limit 30 --ks-max-time-limit 60 --ks-decay-factor 0.9
-# 		./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-sequencing-model --symmetry-breaking --reformulate --ks-min-time-limit 30 --ks-max-time-limit 60 --ks-decay-factor 0.9 --ks-cluster-buckets-by-item-group
-# 		./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-slots-model --symmetry-breaking --reformulate	--ks-min-time-limit 30 --ks-max-time-limit 60 --ks-decay-factor 0.9 --ks-cluster-buckets-by-item-group
+# 		# Compact
+# 		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking
+# 		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking --reformulate
+# 		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking
+# 		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking --reformulate
+# 		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking
+# 		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking --reformulate		
+
+# 		# Cut and branch
+# 		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking --CCCs
+# 		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-sequencing-model --symmetry-breaking --reformulate --CCCs
+# 		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking --CCCs
+# 		./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --vehicle-slots-model --symmetry-breaking --reformulate --CCCs
+# 		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking --CCCs
+# 		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-relaxed --item-sequencing-model --symmetry-breaking --reformulate --CCCs
 # 	fi
 # done
+
+# Exact and Kernel Search
+for file in ${sorted[@]}
+do
+	substr=$(echo $file | rev | cut -d'/' -f 1 | rev)
+	substr=${substr//".txt"/}
+
+	curr_instance=$substr
+	if [[ "$curr_instance" > "$start_instance" ]];
+	then
+		echo "* "$curr_instance
+		# Compact 
+		./bin/stop --solution-dir $dir_solutions --instance $file --solve-exact --vehicle-sequencing-model --symmetry-breaking --reformulate --time-limit $time_limit_exact
+		./bin/stop --solution-dir $dir_solutions --instance $file --solve-exact --vehicle-slots-model --symmetry-breaking --reformulate --time-limit $time_limit_exact
+		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-exact --item-sequencing-model --symmetry-breaking --reformulate
+		
+		# # # Kernel Search
+		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-sequencing-model --symmetry-breaking --reformulate --ks-min-time-limit 30 --ks-max-time-limit 60 --ks-decay-factor 0.9 --time-limit $time_limit_ks
+		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-slots-model --symmetry-breaking --reformulate	--ks-min-time-limit 30 --ks-max-time-limit 60 --ks-decay-factor 0.9 --time-limit $time_limit_ks
+		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-sequencing-model --symmetry-breaking --reformulate --ks-min-time-limit 30 --ks-max-time-limit 60 --ks-decay-factor 0.9 --ks-cluster-buckets-by-item-group --time-limit $time_limit_ks
+		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-slots-model --symmetry-breaking --reformulate	--ks-min-time-limit 30 --ks-max-time-limit 60 --ks-decay-factor 0.9 --ks-cluster-buckets-by-item-group --time-limit $time_limit_ks
+	fi
+done
 
 # ./bin/stop --solution-dir "tests" --instance "../instances/data5-4-4-c0.75-p2.txt" --solve-kernel-search --vehicle-sequencing-model --symmetry-breaking --reformulate --ks-min-time-limit 30 --ks-max-time-limit 60 --ks-decay-factor 0.9
 

@@ -1253,7 +1253,7 @@ int main()
 	// std::string folder = "2024-06-23_13:01:07_all_kernel_search_less_time";
 	std::string folder_heuristic_sol = "2025-09-12_18:09:41_ks";
 	std::string folder_exact_sol = "2025-09-12_10:29:06_exact";
-	std::string folder_relax = "2025-09-19_19:26:30";
+	std::string folder_relax = "2025-09-19_19:04:13";
 	// try
 	// {
 	// GenerateAlgorithmsLatexTablePerInstance(folder);
