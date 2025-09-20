@@ -6,7 +6,7 @@ mkdir "../solutions/"$dir_solutions
 
 time_limit=3600
 
-start_instance="a"
+start_instance="data30-30-32-c0.50-p10"
 files=()
 time_limit=3600
 
