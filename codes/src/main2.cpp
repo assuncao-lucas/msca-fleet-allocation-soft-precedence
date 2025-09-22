@@ -1271,7 +1271,7 @@ int main()
 {
 	// std::string folder = "2024-07-26_09:18:48_all_relax_new";
 	// std::string folder = "2024-06-23_13:01:07_all_kernel_search_less_time";
-	std::string folder_heuristic_sol = "2025-09-22_01:52:09_ks_more_time";
+	std::string folder_heuristic_sol = "2025-09-22_13:25:13_ks_less_time";
 	std::string folder_exact_sol = "2025-09-20_01:13:01_exact";
 	std::string folder_relax = "2025-09-19_19:04:13";
 	// try
@@ -1279,7 +1279,7 @@ int main()
 	// GenerateAlgorithmsLatexTablePerInstance(folder);
 	// return 1;
 	// GenerateLPImprovementsLatexTable(folder_relax);
-	GenerateAlgorithmsLatexTable(folder_exact_sol);
+	// GenerateAlgorithmsLatexTable(folder_exact_sol);
 	GenerateHeuristicsLatexTable(folder_exact_sol, folder_heuristic_sol, false);
 
 	// namespace fs = std::filesystem;
