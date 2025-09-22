@@ -72,10 +72,10 @@ do
 		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-sequencing-model --symmetry-breaking --reformulate --ks-min-time-limit 30 --ks-max-time-limit 60 --ks-decay-factor 0.9 --ks-cluster-buckets-by-item-group --time-limit $time_limit_ks
 		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-slots-model --symmetry-breaking --reformulate	--ks-min-time-limit 30 --ks-max-time-limit 60 --ks-decay-factor 0.9 --ks-cluster-buckets-by-item-group --time-limit $time_limit_ks
 
-		./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-sequencing-model --symmetry-breaking --reformulate --ks-min-time-limit 45 --ks-max-time-limit 90 --ks-decay-factor 0.9 --time-limit $time_limit_ks
-		./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-slots-model --symmetry-breaking --reformulate	--ks-min-time-limit 45 --ks-max-time-limit 90 --ks-decay-factor 0.9 --time-limit $time_limit_ks
-		./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-sequencing-model --symmetry-breaking --reformulate --ks-min-time-limit 45 --ks-max-time-limit 90 --ks-decay-factor 0.9 --ks-cluster-buckets-by-item-group --time-limit $time_limit_ks
-		./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-slots-model --symmetry-breaking --reformulate	--ks-min-time-limit 45 --ks-max-time-limit 90 --ks-decay-factor 0.9 --ks-cluster-buckets-by-item-group --time-limit $time_limit_ks
+		./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-sequencing-model --symmetry-breaking --reformulate --ks-min-time-limit 20 --ks-max-time-limit 45 --ks-decay-factor 0.9 --time-limit $time_limit_ks
+		./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-slots-model --symmetry-breaking --reformulate	--ks-min-time-limit 20 --ks-max-time-limit 45 --ks-decay-factor 0.9 --time-limit $time_limit_ks
+		./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-sequencing-model --symmetry-breaking --reformulate --ks-min-time-limit 20 --ks-max-time-limit 45 --ks-decay-factor 0.9 --ks-cluster-buckets-by-item-group --time-limit $time_limit_ks
+		./bin/stop --solution-dir $dir_solutions --instance $file --solve-kernel-search --vehicle-slots-model --symmetry-breaking --reformulate	--ks-min-time-limit 20 --ks-max-time-limit 45 --ks-decay-factor 0.9 --ks-cluster-buckets-by-item-group --time-limit $time_limit_ks
 	fi
 done
 

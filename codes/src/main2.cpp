@@ -462,10 +462,10 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 	const std::vector<int> number_of_item_groups_vec = {2, 5, 10};
 
 	// algorithms.push_back("baseline_ks_b5_[84,19]_d0.96_feas");
-	// algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_seq_model_sym_break_reform_[60,30]_d0.90"));
-	// algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_slot_model_sym_break_reform_[60,30]_d0.90"));
-	// algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_seq_model_sym_break_reform_cluster_by_group_[60,30]_d0.90"));
-	algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_slot_model_sym_break_reform_cluster_by_group_[60,30]_d0.90"));
+	algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_seq_model_sym_break_reform_[90,45]_d0.90"));
+	algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_slot_model_sym_break_reform_[90,45]_d0.90"));
+	algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_seq_model_sym_break_reform_cluster_by_group_[90,45]_d0.90"));
+	algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_slot_model_sym_break_reform_cluster_by_group_[90,45]_d0.90"));
 
 	std::fstream output;
 	std::string output_name;
@@ -1271,7 +1271,7 @@ int main()
 {
 	// std::string folder = "2024-07-26_09:18:48_all_relax_new";
 	// std::string folder = "2024-06-23_13:01:07_all_kernel_search_less_time";
-	std::string folder_heuristic_sol = "2025-09-20_18:01:03_ks";
+	std::string folder_heuristic_sol = "2025-09-22_01:52:09_ks_more_time";
 	std::string folder_exact_sol = "2025-09-20_01:13:01_exact";
 	std::string folder_relax = "2025-09-19_19:04:13";
 	// try
@@ -1279,7 +1279,7 @@ int main()
 	// GenerateAlgorithmsLatexTablePerInstance(folder);
 	// return 1;
 	// GenerateLPImprovementsLatexTable(folder_relax);
-	// GenerateAlgorithmsLatexTable(folder_exact_sol);
+	GenerateAlgorithmsLatexTable(folder_exact_sol);
 	GenerateHeuristicsLatexTable(folder_exact_sol, folder_heuristic_sol, false);
 
 	// namespace fs = std::filesystem;
