@@ -462,9 +462,9 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 	const std::vector<int> number_of_item_groups_vec = {2, 5, 10};
 
 	// algorithms.push_back("baseline_ks_b5_[84,19]_d0.96_feas");
-	algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_seq_model_sym_break_reform_[60,30]_d0.90"));
-	algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_slot_model_sym_break_reform_[60,30]_d0.90"));
-	algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_seq_model_sym_break_reform_cluster_by_group_[60,30]_d0.90"));
+	// algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_seq_model_sym_break_reform_[60,30]_d0.90"));
+	// algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_slot_model_sym_break_reform_[60,30]_d0.90"));
+	// algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_seq_model_sym_break_reform_cluster_by_group_[60,30]_d0.90"));
 	algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_slot_model_sym_break_reform_cluster_by_group_[60,30]_d0.90"));
 
 	std::fstream output;
@@ -530,6 +530,7 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 				std::cout << instance_name << std::endl;
 
 				double best_lb = -1;
+				double best_num_unproductive_moves = std::numeric_limits<double>::infinity();
 				bool is_infeasible = false;
 				bool has_optimal_bound = false;
 
@@ -549,9 +550,9 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 						throw 4;
 					}
 
-					std::stringstream s_lb, s_ub, s_time;
+					std::stringstream s_lb, s_ub, s_time, s_unproductive_moves;
 					std::string status;
-					double lb = 0.0, ub = 0.0, time = 0.0, gap = 0.0;
+					double lb = 0.0, ub = 0.0, time = 0.0, gap = 0.0, num_unproductive_moves = 0.0;
 					std::string line;
 
 					getline(input, line);
@@ -569,6 +570,17 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 
 					getline(input, line);
 					getline(input, line);
+					pos = line.find_first_of(":");
+					s_unproductive_moves << line.substr(pos + 2);
+					s_unproductive_moves >> num_unproductive_moves;
+					// std::cout << line << std::endl;
+
+					if (double_less(num_unproductive_moves, best_num_unproductive_moves))
+					{
+						// std::cout << num_unproductive_moves << " < " << best_num_unproductive_moves << std::endl;
+						best_num_unproductive_moves = num_unproductive_moves;
+					}
+
 					getline(input, line);
 					getline(input, line);
 					pos = line.find_first_of(":");
@@ -759,10 +771,9 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 							std::cout << instance << " " << algorithms[algo].second << std::endl;
 						}
 
-						std::stringstream s_lb1, s_t1, s_max_improve_iter;
+						std::stringstream s_lb1, s_t1, s_max_improve_iter, s_num_unproductive_moves;
 						std::string line, status;
-						double heuristic_lb = -1, heuristic_time = 0, improvement = 0;
-
+						double heuristic_lb = -1, heuristic_time = 0, improvement = 0, num_unproductive_moves = 0;
 						getline(input, line);
 						size_t pos = line.find_first_of(":");
 						status = line.substr(pos + 2);
@@ -785,6 +796,13 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 							s_lb1 << line.substr(pos + 2);
 							s_lb1 >> heuristic_lb;
 							heuristic_lb = round_decimals(heuristic_lb, 2); // IMPORTANT because I saved heuristic solutions file without 2 decimal precision.
+
+							getline(input, line);
+							getline(input, line);
+							pos = line.find_first_of(":");
+							s_num_unproductive_moves << line.substr(pos + 2);
+							s_num_unproductive_moves >> num_unproductive_moves;
+							num_unproductive_moves = round_decimals(num_unproductive_moves, 2); // IMPORTANT because I saved heuristic solutions file without 2 decimal precision.
 						}
 
 						// if (double_greater(heuristic_time, 1500))
@@ -827,7 +845,9 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 							else
 							{
 								improvement = (100 * (heuristic_lb - best_lb)) / best_lb;
-								std::cout << best_lb << " " << heuristic_lb << " " << status << std::endl;
+								// improvement = (100 * (num_unproductive_moves - best_num_unproductive_moves)) / best_num_unproductive_moves;
+								// std::cout << heuristic_lb << " " << best_lb << " " << status << std::endl;
+								// std::cout << num_unproductive_moves << " " << best_num_unproductive_moves << " " << status << std::endl;
 								if (!double_less(improvement, 0.0))
 								{
 									++(num_best_known_bound_inst_size[algo]);
@@ -1251,7 +1271,7 @@ int main()
 {
 	// std::string folder = "2024-07-26_09:18:48_all_relax_new";
 	// std::string folder = "2024-06-23_13:01:07_all_kernel_search_less_time";
-	std::string folder_heuristic_sol = "2025-09-12_18:09:41_ks";
+	std::string folder_heuristic_sol = "2025-09-20_18:01:03_ks";
 	std::string folder_exact_sol = "2025-09-20_01:13:01_exact";
 	std::string folder_relax = "2025-09-19_19:04:13";
 	// try
@@ -1259,8 +1279,8 @@ int main()
 	// GenerateAlgorithmsLatexTablePerInstance(folder);
 	// return 1;
 	// GenerateLPImprovementsLatexTable(folder_relax);
-	GenerateAlgorithmsLatexTable(folder_exact_sol);
-	// GenerateHeuristicsLatexTable(folder_exact_sol, folder_heuristic_sol, false);
+	// GenerateAlgorithmsLatexTable(folder_exact_sol);
+	GenerateHeuristicsLatexTable(folder_exact_sol, folder_heuristic_sol, false);
 
 	// namespace fs = std::filesystem;
 
