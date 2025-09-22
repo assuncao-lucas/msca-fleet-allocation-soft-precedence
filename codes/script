@@ -1,6 +1,6 @@
 #!/bin/bash
 
-dir0="../instances"
+dir0="../instances_all"
 dir_solutions=$(date +%Y-%m-%d_%H:%M:%S)
 mkdir "../solutions/"$dir_solutions
 
