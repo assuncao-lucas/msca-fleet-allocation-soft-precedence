@@ -42,7 +42,7 @@ std::string KSHeuristicSolution::GenerateFileName(bool solve_cutting_plane, bool
 	std::stringstream ss_decay_factor;
 	ss_decay_factor << std::fixed << std::setprecision(2) << ks_decay_factor;
 	if (!cluster_buckets_by_item_group)
-		algo += /*"_b" + std::to_string(ks_max_size_bucket) +*/ "_[" + std::to_string(ks_max_time_limit) + "," + std::to_string(ks_min_time_limit) + "]_d" + ss_decay_factor.str();
+		algo += /*"_b" + std::to_string(ks_max_size_bucket) +*/ "_[" + std::to_string(ks_min_time_limit) + "," + std::to_string(ks_max_time_limit) + "]_d" + ss_decay_factor.str();
 	else
 		algo += "_cluster_by_group_[" + std::to_string(ks_min_time_limit) + "," + std::to_string(ks_max_time_limit) + "]_d" + ss_decay_factor.str();
 

@@ -179,8 +179,8 @@ void generateInstancesFromBlockRelocationInstances()
 		"data5-7-37",
 		"data5-9-26",
 		"data6-6-19"};
-	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5};
-	const std::vector<double> number_of_item_groups_vec = {15};
+	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {1.0};
+	const std::vector<double> number_of_item_groups_vec = {2, 5, 10, 15};
 
 	for (auto instance_name : instances)
 		for (auto percentage : percentage_of_items_serviced_by_fleet_vec)
@@ -430,13 +430,13 @@ void ParseArgumentsAndRun(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-	// std::string input_dir_path = "/home/lucas/Downloads/brp-instances-caserta-etal-2012/CRPTestcases_Caserta/selected_instances/";
-	// std::string output_dir_path = "../../instances/";
+	std::string input_dir_path = "/home/lucas/Downloads/brp-instances-caserta-etal-2012/CRPTestcases_Caserta/selected_instances/";
+	std::string output_dir_path = "../../instances/";
 
-	// // generateInstancesFromBlockRelocationInstancesIter(input_dir_path, output_dir_path, "data40-40-4", 0.75, 10);
-	// generateInstancesFromBlockRelocationInstances();
+	// generateInstancesFromBlockRelocationInstancesIter(input_dir_path, output_dir_path, "data40-40-4", 0.75, 10);
+	generateInstancesFromBlockRelocationInstances();
 
-	// return 0;
+	return 0;
 	try
 	{
 		ParseArgumentsAndRun(argc, argv);
