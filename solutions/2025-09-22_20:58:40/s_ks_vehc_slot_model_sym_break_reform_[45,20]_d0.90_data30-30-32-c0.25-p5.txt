@@ -1,0 +1,6 @@
+STATUS: FOUND INTEGER FEASIBLE SOLUTION
+time building kernel and buckets (s): 0.00000
+total time (s): 629.93006
+LB: 197146.00000
+num_items_loaded: 228
+num_unproductive_moves: 74
