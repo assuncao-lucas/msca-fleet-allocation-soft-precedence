@@ -430,13 +430,13 @@ void ParseArgumentsAndRun(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-	std::string input_dir_path = "/home/lucas/Downloads/brp-instances-caserta-etal-2012/CRPTestcases_Caserta/selected_instances/";
-	std::string output_dir_path = "../../instances/";
+	// std::string input_dir_path = "/home/lucas/Downloads/brp-instances-caserta-etal-2012/CRPTestcases_Caserta/selected_instances/";
+	// std::string output_dir_path = "../../instances/";
 
-	// generateInstancesFromBlockRelocationInstancesIter(input_dir_path, output_dir_path, "data40-40-4", 0.75, 10);
-	generateInstancesFromBlockRelocationInstances();
+	// // generateInstancesFromBlockRelocationInstancesIter(input_dir_path, output_dir_path, "data40-40-4", 0.75, 10);
+	// generateInstancesFromBlockRelocationInstances();
 
-	return 0;
+	// return 0;
 	try
 	{
 		ParseArgumentsAndRun(argc, argv);
