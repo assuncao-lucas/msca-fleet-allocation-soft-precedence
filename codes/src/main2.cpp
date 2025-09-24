@@ -217,7 +217,7 @@ void GenerateAlgorithmsLatexTable(std::string folder)
 		"data5-9-26",
 		"data6-6-19"};
 	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5};
-	const std::vector<int> number_of_item_groups_vec = {2, 5, 10};
+	const std::vector<int> number_of_item_groups_vec = {2, 5, 10, 15};
 
 	std::fstream output;
 	std::string output_name;
@@ -459,7 +459,7 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 		"data5-9-26",
 		"data6-6-19"};
 	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5};
-	const std::vector<int> number_of_item_groups_vec = {2, 5, 10};
+	const std::vector<int> number_of_item_groups_vec = {2, 5, 10, 15};
 
 	// algorithms.push_back("baseline_ks_b5_[84,19]_d0.96_feas");
 	algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_seq_model_sym_break_reform_[20,45]_d0.90"));
@@ -1127,7 +1127,7 @@ void GenerateLPImprovementsLatexTable(std::string folder)
 		"data5-9-26",
 		"data6-6-19"};
 	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5};
-	const std::vector<int> number_of_item_groups_vec = {2, 5, 10};
+	const std::vector<int> number_of_item_groups_vec = {2, 5, 10, 15};
 
 	std::vector<std::vector<double>> total_improvement_per_algo(algorithms.size(), std::vector<double>());
 	std::vector<double> total_avg_improvement(algorithms.size(), 0.0);
@@ -1273,13 +1273,13 @@ int main()
 	// std::string folder = "2024-06-23_13:01:07_all_kernel_search_less_time";
 	std::string folder_heuristic_sol = "2025-09-22_20:58:40_ks_less_time";
 	std::string folder_exact_sol = "2025-09-20_01:13:01_exact";
-	std::string folder_relax = "2025-09-19_19:04:13";
+	std::string folder_relax = "2025-09-19_19:04:13_relax";
 	// try
 	// {
 	// GenerateAlgorithmsLatexTablePerInstance(folder);
 	// return 1;
-	// GenerateLPImprovementsLatexTable(folder_relax);
-	// GenerateAlgorithmsLatexTable(folder_exact_sol);
+	GenerateLPImprovementsLatexTable(folder_relax);
+	GenerateAlgorithmsLatexTable(folder_exact_sol);
 	GenerateHeuristicsLatexTable(folder_exact_sol, folder_heuristic_sol, false);
 
 	// namespace fs = std::filesystem;
