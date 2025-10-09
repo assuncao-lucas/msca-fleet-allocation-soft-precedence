@@ -169,17 +169,18 @@ void generateInstancesFromBlockRelocationInstances()
 	std::string input_dir_path = "/home/lucas/Downloads/brp-instances-caserta-etal-2012/CRPTestcases_Caserta/selected_instances/";
 	std::string output_dir_path = "../instances/";
 	std::vector<std::string> instances = {
-		"data10-6-37",
-		"data20-20-6",
-		"data30-30-32",
-		// "data40-40-3",
-		"data5-10-36",
-		"data5-4-4",
-		"data5-6-10",
-		"data5-7-37",
-		"data5-9-26",
-		"data6-6-19"};
-	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {1.0};
+		// "data10-6-37",
+		// "data20-20-6",
+		// "data30-30-32",
+		// // "data40-40-3",
+		// "data5-10-36",
+		// "data5-4-4",
+		// "data5-6-10",
+		// "data5-7-37",
+		// "data5-9-26",
+		// "data6-6-19",
+		"data10-10-9"};
+	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5};
 	const std::vector<double> number_of_item_groups_vec = {2, 5, 10, 15};
 
 	for (auto instance_name : instances)
