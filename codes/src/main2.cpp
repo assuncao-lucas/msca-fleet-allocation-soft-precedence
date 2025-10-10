@@ -214,8 +214,9 @@ void GenerateAlgorithmsLatexTable(std::string folder)
 		"data5-9-26",
 		"data5-10-36",
 		"data10-6-37",
+		"data10-10-9",
 		"data20-20-6",
-		"data30-30-32"
+		"data30-30-32",
 		// // "data40-40-3",
 	};
 	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5};
@@ -1269,15 +1270,15 @@ void GenerateLPImprovementsLatexTable(std::string folder)
 	algorithms.push_back("relax_vehc_seq_model_sym_break");
 
 	//  Table models
-	// algorithms.push_back("relax_vehc_seq_model_sym_break_reform");
-	// algorithms.push_back("relax_vehc_slot_model_sym_break");
-	// algorithms.push_back("relax_vehc_slot_model_sym_break_reform");
+	algorithms.push_back("relax_vehc_seq_model_sym_break_reform");
+	algorithms.push_back("relax_vehc_slot_model_sym_break");
+	algorithms.push_back("relax_vehc_slot_model_sym_break_reform");
 
-	// table CB
-	algorithms.push_back("relax_cb_vehc_seq_model_sym_break");
-	algorithms.push_back("relax_cb_vehc_seq_model_sym_break_reform");
-	algorithms.push_back("relax_cb_vehc_slot_model_sym_break");
-	algorithms.push_back("relax_cb_vehc_slot_model_sym_break_reform");
+	// // table CB
+	// algorithms.push_back("relax_cb_vehc_seq_model_sym_break");
+	// algorithms.push_back("relax_cb_vehc_seq_model_sym_break_reform");
+	// algorithms.push_back("relax_cb_vehc_slot_model_sym_break");
+	// algorithms.push_back("relax_cb_vehc_slot_model_sym_break_reform");
 
 	// algorithms.push_back("relax_itm_seq_model_sym_break");
 	// algorithms.push_back("relax_itm_seq_model_sym_break_reform");
@@ -1306,6 +1307,7 @@ void GenerateLPImprovementsLatexTable(std::string folder)
 		"data5-9-26",
 		"data5-10-36",
 		"data10-6-37",
+		"data10-10-9",
 		"data20-20-6",
 		"data30-30-32"
 		// // "data40-40-3",
