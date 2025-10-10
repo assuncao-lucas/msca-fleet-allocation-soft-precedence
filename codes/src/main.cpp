@@ -167,20 +167,21 @@ void generateInstancesFromBlockRelocationInstancesIter(std::string input_dir_pat
 void generateInstancesFromBlockRelocationInstances()
 {
 	std::string input_dir_path = "/home/lucas/Downloads/brp-instances-caserta-etal-2012/CRPTestcases_Caserta/selected_instances/";
-	std::string output_dir_path = "../../instances/";
-	std::vector<std::string> instances = {"data40-40-3"};
-	// std::vector<std::string> instances = {"data10-10-31",
-	// 									  "data10-6-37",
-	// 									  "data20-20-6",
-	// 									  "data30-30-32",
-	// 									  "data5-10-36",
-	// 									  "data5-4-4",
-	// 									  "data5-6-10",
-	// 									  "data5-7-37",
-	// 									  "data5-9-26",
-	// 									  "data6-6-19"};
-	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5, 0.75};
-	const std::vector<double> number_of_item_groups_vec = {2, 5, 10};
+	std::string output_dir_path = "../instances/";
+	std::vector<std::string> instances = {
+		// "data10-6-37",
+		// "data20-20-6",
+		// "data30-30-32",
+		// // "data40-40-3",
+		// "data5-10-36",
+		// "data5-4-4",
+		// "data5-6-10",
+		// "data5-7-37",
+		// "data5-9-26",
+		// "data6-6-19",
+		"data10-10-9"};
+	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5};
+	const std::vector<double> number_of_item_groups_vec = {2, 5, 10, 15};
 
 	for (auto instance_name : instances)
 		for (auto percentage : percentage_of_items_serviced_by_fleet_vec)
@@ -375,9 +376,16 @@ void ParseArgumentsAndRun(int argc, char *argv[])
 		if (model->optimize(time_limit, add_valid_inequalities, root_cuts, nullptr, solution))
 			model->fillSolution(solution, std::nullopt);
 
-		std::cout << "Bound: " << solution.lb_ << std::endl
-				  << "num items: " << solution.num_items_loaded_ << std::endl
-				  << "num unproductive moves: " << solution.num_unproductive_moves_ << std::endl;
+		if (solve_relaxed)
+		{
+			std::cout << "Bound: " << solution.lp_ << std::endl;
+		}
+		else
+		{
+			std::cout << "Bound: " << solution.lb_ << std::endl
+					  << "num items: " << solution.num_items_loaded_ << std::endl
+					  << "num unproductive moves: " << solution.num_unproductive_moves_ << std::endl;
+		}
 
 		solution.write_to_file(algo, dir_solutions, file_name);
 		// std::cout << "cuts added root: " << solution.num_cuts_added_lp_[K_TYPE_CLIQUE_CONFLICT_CUT] << std::endl;
