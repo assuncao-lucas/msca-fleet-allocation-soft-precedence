@@ -458,6 +458,7 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 		"data5-9-26",
 		"data5-10-36",
 		"data10-6-37",
+		"data10-10-9",
 		"data20-20-6",
 		"data30-30-32"
 		// // "data40-40-3",
@@ -1465,8 +1466,8 @@ int main()
 	// GenerateAlgorithmsLatexTablePerInstance(folder);
 	// return 1;
 	// GenerateLPImprovementsLatexTable(folder_relax);
-	GenerateAlgorithmsLatexTable(folder_exact_sol);
-	// GenerateHeuristicsLatexTable(folder_exact_sol, folder_heuristic_sol, false);
+	// GenerateAlgorithmsLatexTable(folder_exact_sol);
+	GenerateHeuristicsLatexTable(folder_exact_sol, folder_heuristic_sol, false);
 
 	// namespace fs = std::filesystem;
 
