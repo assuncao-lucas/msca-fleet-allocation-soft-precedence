@@ -1,6 +1,6 @@
 #!/bin/bash
 
-dir0="../big_instances"
+dir0="../instances"
 dir_solutions=$(date +%Y-%m-%d_%H:%M:%S)
 mkdir "../solutions/"$dir_solutions
 
@@ -8,7 +8,7 @@ time_limit=3600
 
 start_instance="a"
 files=()
-time_limit_exact=300
+time_limit_exact=60
 time_limit_ks=900
 
 cont=0

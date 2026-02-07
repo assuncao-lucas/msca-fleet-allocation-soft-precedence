@@ -1295,13 +1295,13 @@ void GenerateHeuristicsLatexTableUnsolved(std::string folder_exact, std::string 
 	// std::cout << output_name << std::endl;
 
 	std::vector<std::string> instances = {
-		"data5-4-4",
-		"data5-6-10",
-		"data5-7-37",
-		"data6-6-19",
-		"data5-9-26",
-		"data5-10-36",
-		"data10-6-37",
+		// "data5-4-4",
+		// "data5-6-10",
+		// "data5-7-37",
+		// "data6-6-19",
+		// "data5-9-26",
+		// "data5-10-36",
+		// "data10-6-37",
 		"data10-10-9",
 		"data20-20-6",
 		"data30-30-32"
@@ -1776,7 +1776,7 @@ int main()
 	// std::string folder = "2024-07-26_09:18:48_all_relax_new";
 	// std::string folder = "2024-06-23_13:01:07_all_kernel_search_less_time";
 	std::string folder_heuristic_sol = "2025-09-22_20:58:40_ks_less_time";
-	std::string folder_exact_sol = "2025-09-20_01:13:01_exact";
+	std::string folder_exact_sol = "2026-02-07_01:49:05_exact_5min";
 	std::string folder_relax = "2025-09-19_19:04:13_relax";
 	// try
 	// {
@@ -1785,7 +1785,7 @@ int main()
 	// GenerateLPImprovementsLatexTable(folder_relax);
 	// GenerateAlgorithmsLatexTable(folder_exact_sol);
 	// GenerateHeuristicsLatexTable(folder_exact_sol, folder_heuristic_sol, false);
-	GenerateHeuristicsLatexTableUnsolved(folder_exact_sol, folder_heuristic_sol, false);
+	GenerateHeuristicsLatexTableUnsolved(folder_exact_sol, folder_heuristic_sol, true);
 
 	// namespace fs = std::filesystem;
 
