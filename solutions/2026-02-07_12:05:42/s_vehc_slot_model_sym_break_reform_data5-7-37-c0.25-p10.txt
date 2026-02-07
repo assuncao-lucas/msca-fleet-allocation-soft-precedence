@@ -1,0 +1,17 @@
+STATUS: OPTIMAL
+num_items_loaded: 11
+num_unproductive_moves: 6
+LP: inf
+Lb: 302.00
+Ub: 302.00
+Root time(s): 0.00
+MILP time(s): 0.23
+Total time + pre-processing (s): 0.23
+Separation time(s): 0.00
+# iterations of cutting plane at root: 0
+# cuts added/found via callback (LP): 
+type 0: 0/0
+# calls to callback: 0
+# cuts added/found via callback (MILP): 
+type 0: 0/0
+# nodes explored: 0
