@@ -21,7 +21,7 @@ CC=ccache g++ -std=c++17
 PROG_DIR=codes/src
 PROG_BIN=codes/bin
 
-MAIN_SRC=$(PROG_DIR)/main2.cpp
+MAIN_SRC=$(PROG_DIR)/main.cpp
 
 ARC_SRC=$(PROG_DIR)/arc.cpp
 ARC_H=$(PROG_DIR)/arc.h

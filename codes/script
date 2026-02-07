@@ -1,6 +1,6 @@
 #!/bin/bash
 
-dir0="../instances/big_instances"
+dir0="../big_instances"
 dir_solutions=$(date +%Y-%m-%d_%H:%M:%S)
 mkdir "../solutions/"$dir_solutions
 
@@ -63,7 +63,7 @@ do
 		echo "* "$curr_instance
 		# # Compact 
 		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-exact --vehicle-sequencing-model --symmetry-breaking --reformulate --time-limit $time_limit_exact
-		./bin/stop --solution-dir $dir_solutions --instance $file --solve-exact --vehicle-slots-model --symmetry-breaking --reformulate --time-limit $time_limit_exact
+		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-exact --vehicle-slots-model --symmetry-breaking --reformulate --time-limit $time_limit_exact
 		# ./bin/stop --solution-dir $dir_solutions --instance $file --solve-exact --item-sequencing-model --symmetry-breaking --reformulate
 		
 		# # # Kernel Search
