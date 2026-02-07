@@ -519,6 +519,7 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 	std::vector<double> total_avg_gap_moves(algorithms.size(), 0.0);
 
 	std::vector<int> total_num_best_known_bound(algorithms.size(), 0);
+	std::vector<int> total_num_over_best_known_bound(algorithms.size(), 0);
 
 	size_t total_num_instances = instances.size() * percentage_of_items_serviced_by_fleet_vec.size() * number_of_item_groups_vec.size();
 	size_t num_inst_per_vertex_size_exact = percentage_of_items_serviced_by_fleet_vec.size() * number_of_item_groups_vec.size();
@@ -551,6 +552,7 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 		std::vector<double> st_dev_moves_inst_size(algorithms.size(), 0.0);
 
 		std::vector<int> num_best_known_bound_inst_size(algorithms.size(), 0);
+		std::vector<int> num_over_best_known_bound_inst_size(algorithms.size(), 0);
 
 		for (auto percentage_of_items_serviced_by_fleet : percentage_of_items_serviced_by_fleet_vec)
 		{
@@ -900,7 +902,7 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 							{
 								gap = -100.0;
 								++(num_best_known_bound_inst_size[algo]);
-								++(total_num_best_known_bound[algo]);
+								++(total_num_over_best_known_bound[algo]);
 							}
 							else
 							{
@@ -908,7 +910,12 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 								// improvement = (100 * (num_unproductive_moves - best_num_unproductive_moves)) / best_num_unproductive_moves;
 								// std::cout << heuristic_lb << " " << best_lb << " " << status << std::endl;
 								// std::cout << num_unproductive_moves << " " << best_num_unproductive_moves << " " << status << std::endl;
-								if (!double_greater(gap, 0.0))
+								if (double_less(gap, 0.0))
+								{
+									++(num_over_best_known_bound_inst_size[algo]);
+									++(total_num_over_best_known_bound[algo]);
+								}
+								else if (double_equals(gap, 0.0))
 								{
 									++(num_best_known_bound_inst_size[algo]);
 									++(total_num_best_known_bound[algo]);
@@ -930,6 +937,11 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 								// improvement = (100 * (num_unproductive_moves - best_num_unproductive_moves)) / best_num_unproductive_moves;
 								// std::cout << heuristic_lb << " " << best_lb << " " << status << std::endl;
 								// std::cout << num_unproductive_moves << " " << best_num_unproductive_moves << " " << status << std::endl;
+							}
+
+							if (double_equals(best_num_unproductive_moves, 0.0) && !double_equals(num_unproductive_moves, 0.0))
+							{
+								std::cout << " ****** " << best_num_unproductive_moves << " vs " << num_unproductive_moves << std::endl;
 							}
 
 							// compute moves improvement
@@ -1206,7 +1218,7 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 			}
 			else
 				avg_gap_moves_inst_size[algo] = st_dev_moves_inst_size[algo] = -1;
-			output << " & & " << num_best_known_bound_inst_size[algo] << "/" << num_inst_per_vertex_size << " & " << avg_time_inst_size[algo] << " & " << avg_gap_inst_size[algo] << " & " << st_dev_inst_size[algo]
+			output << " & & " << num_best_known_bound_inst_size[algo] << "/" << num_over_best_known_bound_inst_size[algo] /*<< "/" << num_inst_per_vertex_size*/ << " & " << avg_time_inst_size[algo] << " & " << avg_gap_inst_size[algo] << " & " << st_dev_inst_size[algo]
 				   << " & & " << avg_gap_capacity_inst_size[algo] << " & " << st_dev_capacity_inst_size[algo] << " & & " << avg_gap_moves_inst_size[algo] << " & " << st_dev_moves_inst_size[algo];
 		}
 		output << "\\\\" << std::endl;
@@ -1253,12 +1265,317 @@ void GenerateHeuristicsLatexTable(std::string folder_exact, std::string folder_h
 			total_avg_gap_moves[algo] /= (1.0 * ((total_gap_moves_per_algo[algo]).size()));
 		else
 			total_avg_gap_moves[algo] = -1;
-		output << " & & " << total_num_best_known_bound[algo] << "/" << total_num_instances << " & " << total_avg_time[algo] << " & " << total_avg_gap[algo] << " & " << StDev(total_gap_per_algo[algo], total_avg_gap[algo])
+		output << " & & " << total_num_best_known_bound[algo] << "/" << total_num_over_best_known_bound[algo] /*<< "/" << total_num_instances*/ << " & " << total_avg_time[algo] << " & " << total_avg_gap[algo] << " & " << StDev(total_gap_per_algo[algo], total_avg_gap[algo])
 			   << " & & " << total_avg_gap_capacity[algo] << " & " << StDev(total_gap_capacity_per_algo[algo], total_avg_gap_capacity[algo])
 			   << " & & " << total_avg_gap_moves[algo] << " & " << StDev(total_gap_moves_per_algo[algo], total_avg_gap_moves[algo]);
 	}
 
 	output << "\\\\" << std::endl;
+
+	output.close();
+}
+
+void GenerateHeuristicsLatexTableUnsolved(std::string folder_exact, std::string folder_heuristic, bool print_exact)
+{
+	std::string curr_file;
+	std::vector<std::pair<int, std::string>> algorithms;
+	std::vector<std::string> exact_algorithms;
+
+	// exact_algorithms.push_back("vehc_seq_model_sym_break_reform");
+	// algorithms.push_back("cb_vehc_seq_model_sym_break_reform");
+
+	exact_algorithms.push_back("vehc_slot_model_sym_break_reform");
+	// algorithms.push_back("cb_vehc_slot_model_sym_break_reform");
+
+	// algorithms.push_back("relax_item_seq_model_sym_break");
+	// algorithms.push_back("relax_item_seq_model_sym_break_reform");
+	// algorithms.push_back("relax_cb_item_seq_model_sym_break");
+	// algorithms.push_back("relax_cb_item_seq_model_sym_break_reform");
+
+	// std::cout << output_name << std::endl;
+
+	std::vector<std::string> instances = {
+		"data5-4-4",
+		"data5-6-10",
+		"data5-7-37",
+		"data6-6-19",
+		"data5-9-26",
+		"data5-10-36",
+		"data10-6-37",
+		"data10-10-9",
+		"data20-20-6",
+		"data30-30-32"
+		// // "data40-40-3",
+	};
+	const std::vector<double> percentage_of_items_serviced_by_fleet_vec = {0.25, 0.5};
+	const std::vector<int> number_of_item_groups_vec = {2, 5, 10, 15};
+
+	// algorithms.push_back("baseline_ks_b5_[84,19]_d0.96_feas");
+	// algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_seq_model_sym_break_reform_[20,45]_d0.90"));
+	// algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_slot_model_sym_break_reform_[20,45]_d0.90"));
+	// algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_seq_model_sym_break_reform_cluster_by_group_[20,45]_d0.90"));
+	algorithms.push_back(std::pair<int, std::string>(0, "ks_vehc_slot_model_sym_break_reform_cluster_by_group_[20,45]_d0.90"));
+
+	std::string target_algo = ""; //"ks_vehc_slot_model_sym_break_reform_cluster_by_group_[20,45]_d0.90";
+
+	std::fstream output;
+	std::string output_name;
+	output_name = "..//tables//latex//table_heuristics_unsolved.txt";
+	output.open(output_name.c_str(), std::fstream::out);
+
+	if (!output.is_open())
+	{
+		std::cout << "Could not open file " << output_name << std::endl;
+		throw 1;
+	}
+
+	// output << "instance,lb,ub,num_items,num_moves,time";
+
+	// for (auto &algo : algorithms)
+	// {
+	// 	output << ",lb,num_items,num_moves,time";
+	// }
+
+	// output << std::endl;
+
+	// std::cout << output_name << std::endl;
+
+	output << std::setprecision(2) << std::fixed;
+
+	double avg_time_exact = 0.0, avg_gap_exact = 0.0, avg_moves_exact = 0.0, avg_capacity_exact = 0.0;
+	double avg_time_heuristic = 0.0, avg_gap_heuristic = 0.0, avg_moves_heuristic = 0.0, avg_capacity_heuristic = 0.0;
+	int num_instances = 0;
+
+	for (auto instance : instances)
+	{
+		for (auto percentage_of_items_serviced_by_fleet : percentage_of_items_serviced_by_fleet_vec)
+		{
+			for (auto number_of_item_groups : number_of_item_groups_vec)
+			{
+
+				// Create an ostringstream object
+				std::ostringstream oss;
+				// Set the precision and fixed-point notation
+				oss << std::fixed << std::setprecision(2) << percentage_of_items_serviced_by_fleet;
+				std::string instance_name = instance + "-c" + oss.str() + "-p" + std::to_string(number_of_item_groups);
+				std::cout << instance_name << std::endl;
+
+				double best_lb = -1, best_ub = std::numeric_limits<double>::infinity();
+				double best_num_unproductive_moves = std::numeric_limits<double>::infinity();
+				double best_time = std::numeric_limits<double>::infinity();
+				double best_capacity = -1;
+				bool is_infeasible = false;
+				bool has_optimal_bound = false;
+
+				// compute the best known primal bound among the exact algorithms.
+				for (size_t algo = 0; algo < exact_algorithms.size(); ++algo)
+				{
+					curr_file = "..//solutions//" + folder_exact + "//s_" + exact_algorithms[algo] + "_" + instance_name + ".txt";
+
+					// std::cout << curr_file << std::endl;
+
+					std::fstream input;
+					input.open(curr_file.c_str(), std::fstream::in);
+
+					if (!input.is_open())
+					{
+						std::cout << "Could not open file " << curr_file << std::endl;
+						throw 4;
+					}
+
+					std::stringstream s_lb, s_ub, s_time, s_unproductive_moves, s_capacity;
+					std::string status;
+					double lb = 0.0, ub = 0.0, time = 0.0, gap = 0.0, num_unproductive_moves = 0.0, capacity = 0.0;
+					std::string line;
+
+					getline(input, line);
+					size_t pos = line.find_first_of(":");
+					status = line.substr(pos + 2);
+
+					std::string::iterator end_pos = std::remove(status.begin(), status.end(), ' ');
+					status.erase(end_pos, status.end());
+
+					if (status == "INFEASIBLE")
+					{
+						is_infeasible = true;
+						break;
+					}
+
+					getline(input, line);
+					pos = line.find_first_of(":");
+					s_capacity << line.substr(pos + 2);
+					s_capacity >> capacity;
+					// std::cout << line << std::endl;
+
+					if (double_greater(capacity, best_capacity))
+					{
+						// std::cout << best_capacity << " < " << best_capacity << std::endl;
+						best_capacity = capacity;
+					}
+
+					getline(input, line);
+					pos = line.find_first_of(":");
+					s_unproductive_moves << line.substr(pos + 2);
+					s_unproductive_moves >> num_unproductive_moves;
+					// std::cout << line << std::endl;
+
+					if (double_less(num_unproductive_moves, best_num_unproductive_moves))
+					{
+						// std::cout << num_unproductive_moves << " < " << best_num_unproductive_moves << std::endl;
+						best_num_unproductive_moves = num_unproductive_moves;
+					}
+
+					getline(input, line);
+					getline(input, line);
+					pos = line.find_first_of(":");
+					s_lb << line.substr(pos + 2);
+					if (s_lb.str() == "-inf")
+						lb = -1;
+					else
+						s_lb >> lb;
+
+					// std::cout << exact_algorithms[algo] << " " << lb << std::endl;
+
+					getline(input, line);
+					pos = line.find_first_of(":");
+					s_ub << line.substr(pos + 2);
+					if (s_ub.str() == "inf")
+						ub = -1;
+					else
+						s_ub >> ub;
+
+					getline(input, line);
+					getline(input, line);
+					getline(input, line);
+					pos = line.find_first_of(":");
+					s_time << line.substr(pos + 2);
+					s_time >> time;
+
+					if ((status != "OPTIMAL") && (status != "INFEASIBLE"))
+					{
+						if ((!(double_equals(lb, -1))) && (!(double_equals(ub, -1))))
+						{
+							if (double_greater(ub, lb))
+								gap = (100.0 * (ub - lb)) / ub;
+						}
+						else
+						{
+							gap = 100.0;
+						}
+					}
+
+					// std::cout << "lp: " << lp << " improvement: " << curr_improvement << std::endl;
+					if (double_equals(gap, 0.0))
+					{
+						has_optimal_bound = true;
+						best_lb = lb;
+						best_ub = lb;
+						best_time = time;
+						break;
+					}
+					else if (double_greater(lb, best_lb))
+					{
+						best_ub = ub;
+						best_lb = lb;
+						best_time = time;
+					}
+
+					input.close();
+				}
+
+				if (!has_optimal_bound)
+				{
+					++num_instances;
+					double exact_gap = (100 * (best_ub - best_lb)) / best_ub;
+					double division = 1;
+					avg_time_exact += best_time;
+					avg_gap_exact += exact_gap;
+					avg_moves_exact += best_num_unproductive_moves;
+					avg_capacity_exact += best_capacity;
+					if (print_exact)
+						output << instance_name << " & " << best_ub / division << " & " << best_lb / division << " & " << exact_gap << " & " << (int)best_capacity << " & " << (int)best_num_unproductive_moves << " & " << best_time;
+
+					for (size_t algo = 0; algo < algorithms.size(); ++algo)
+					{
+						curr_file = "..//solutions//" + folder_heuristic + "//s_" + algorithms[algo].second + "_" + instance_name + ".txt";
+
+						// std::cout << curr_file << std::endl;
+
+						std::fstream input;
+						input.open(curr_file.c_str(), std::fstream::in);
+
+						if (!input.is_open())
+						{
+							std::cout << "Could not open file " << curr_file << std::endl;
+							continue;
+							// throw 4;
+						}
+						else
+						{
+							std::cout << instance << " " << algorithms[algo].second << std::endl;
+						}
+
+						std::stringstream s_lb1, s_t1, s_num_unproductive_moves, s_capacity;
+						std::string line, status;
+						double heuristic_lb = -1, heuristic_time = 0, gap = 0, num_unproductive_moves = -1, capacity = -1, gap_capacity = 0, gap_moves = 0;
+						getline(input, line);
+						size_t pos = line.find_first_of(":");
+						status = line.substr(pos + 2);
+
+						std::string::iterator end_pos = std::remove(status.begin(), status.end(), ' ');
+						status.erase(end_pos, status.end());
+
+						// std::cout << status << std::endl;
+						getline(input, line);
+						getline(input, line);
+
+						pos = line.find_first_of(":");
+						s_t1 << line.substr(pos + 2);
+						s_t1 >> heuristic_time;
+
+						if (status != "INFEASIBLE")
+						{
+							getline(input, line);
+							pos = line.find_first_of(":");
+							s_lb1 << line.substr(pos + 2);
+							s_lb1 >> heuristic_lb;
+							heuristic_lb = round_decimals(heuristic_lb, 2); // IMPORTANT because I saved heuristic solutions file without 2 decimal precision.
+
+							getline(input, line);
+							pos = line.find_first_of(":");
+							s_capacity << line.substr(pos + 2);
+							s_capacity >> capacity;
+							capacity = round_decimals(capacity, 2); // IMPORTANT because I saved heuristic solutions file without 2 decimal precision.
+
+							getline(input, line);
+							pos = line.find_first_of(":");
+							s_num_unproductive_moves << line.substr(pos + 2);
+							s_num_unproductive_moves >> num_unproductive_moves;
+							num_unproductive_moves = round_decimals(num_unproductive_moves, 2); // IMPORTANT because I saved heuristic solutions file without 2 decimal precision.
+						}
+
+						double heuristic_gap = (100 * (best_ub - heuristic_lb)) / best_ub;
+						avg_time_heuristic += heuristic_time;
+						avg_gap_heuristic += heuristic_gap;
+						avg_moves_heuristic += num_unproductive_moves;
+						avg_capacity_heuristic += capacity;
+						if (!print_exact)
+							output << instance_name << " & {--} & " << heuristic_lb / division << " & " << heuristic_gap << " & " << (int)capacity << " & " << (int)num_unproductive_moves << " & " << heuristic_time;
+
+						// output << "," << heuristic_lb << "," << capacity << "," << num_unproductive_moves << "," << heuristic_time;
+
+						input.close();
+					}
+					output << "\\\\" << std::endl;
+				}
+			}
+		}
+	}
+
+	if (print_exact)
+		output << "Total  & & & " << avg_gap_exact / num_instances << " & " << avg_capacity_exact / num_instances << " & " << avg_moves_exact / num_instances << " & " << avg_time_exact / num_instances << "\\\\" << std::endl;
+	else
+		output << "Total & & & " << avg_gap_heuristic / num_instances << " & " << avg_capacity_heuristic / num_instances << " & " << avg_moves_heuristic / num_instances << " & " << avg_time_heuristic / num_instances << "\\\\" << std::endl;
 
 	output.close();
 }
@@ -1467,7 +1784,8 @@ int main()
 	// return 1;
 	// GenerateLPImprovementsLatexTable(folder_relax);
 	// GenerateAlgorithmsLatexTable(folder_exact_sol);
-	GenerateHeuristicsLatexTable(folder_exact_sol, folder_heuristic_sol, false);
+	// GenerateHeuristicsLatexTable(folder_exact_sol, folder_heuristic_sol, false);
+	GenerateHeuristicsLatexTableUnsolved(folder_exact_sol, folder_heuristic_sol, false);
 
 	// namespace fs = std::filesystem;
 
